@@ -32,6 +32,8 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.Timestamp.setStyleSheet("background-color: rgb(255, 0, 0);")  
         self.OutputText.setFont(QFont('Consolas', 9))
         self.setWindowIcon(QIcon(':img/Icon.ico')) #若ICON在同一層目錄
+        self.OutputText.setTextColor(QColor(255, 255, 255))
+        self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);")  
       
         # 定时器接收数据
         self.timer = QTimer(self)
@@ -137,7 +139,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         
     def clear_click(self):
        self.OutputText.clear()
-       
+     
     def Timestamp_click(self):
     
          
@@ -291,6 +293,19 @@ class Main(QWidget, ui.Ui_MainWindow):
         data=str(log)
         f.write(data)
         f.close()        
+
+    # 视图-浏览器字体颜色设置
+    def browser_word_color(self):
+        col = QColorDialog.getColor(self.OutputText.textColor(), self, "文字顏色設定")
+        if col.isValid():
+            self.OutputText.setTextColor(col)
+
+    # 视图-浏览器背景颜色设置
+    def browser_background_color(self):
+        col = QColorDialog.getColor(self.OutputText.textColor(), self, "背景颜色设置")
+        if col.isValid():
+            self.OutputText.setStyleSheet(
+                "background-color: rgb({}, {}, {});".format(col.red(), col.green(), col.blue()))
 
 
     '''
