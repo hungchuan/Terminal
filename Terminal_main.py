@@ -1,3 +1,4 @@
+import os
 import sys
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import *
@@ -20,6 +21,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         super().__init__()
         self.setupUi(self)
         self.Connect.setAutoFillBackground(True)
+
         self.Configure.clicked.connect(self.Configure_click)
 
          
@@ -29,11 +31,21 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.log.clicked.connect(self.openflie)
         self.command.returnPressed.connect(self.command_function) #Press Enter callback 
         self.Connect.setStyleSheet("background-color: rgb(255, 0, 0);")  
-        self.Timestamp.setStyleSheet("background-color: rgb(255, 0, 0);")  
+        self.Timestamp.setStyleSheet("background-color: rgb(0, 255, 0);")  
         self.OutputText.setFont(QFont('Consolas', 9))
         self.setWindowIcon(QIcon(':img/Icon.ico')) #若ICON在同一層目錄
-        self.OutputText.setTextColor(QColor(255, 255, 255))
-        self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);")  
+        
+        self.Configure.setFocusPolicy(Qt.ClickFocus)#NoFocus   ClickFocus
+        self.Clear.setFocusPolicy(Qt.ClickFocus)
+        self.Timestamp.setFocusPolicy(Qt.ClickFocus)
+        self.log.setFocusPolicy(Qt.ClickFocus)
+        self.Connect.setFocusPolicy(Qt.ClickFocus)
+        self.OutputText.setFocusPolicy(Qt.ClickFocus)
+        self.command.setFocusPolicy(Qt.ClickFocus)        
+        self.frame.setFocusPolicy(Qt.ClickFocus)         
+        self.setFocusPolicy(Qt.ClickFocus)       
+        
+        self.OutputText.installEventFilter(self)
       
         # 定时器接收数据
         self.timer = QTimer(self)
@@ -41,19 +53,26 @@ class Main(QWidget, ui.Ui_MainWindow):
          
         #self.ReadUARTThread = threading.Thread(target=self.ReadUART)
         #self.ReadUARTThread.start()
-        
-        self.OutputText.setFocusPolicy(Qt.StrongFocus)
-        self.setFocusPolicy(Qt.StrongFocus)
-        
+          
         #self.le  = MyLineEdit()
         
         #self.le.signalTabPressed[str].connect(self.update)
-         
+        
         print("baudrate = ",ser.baudrate)   
         self.com_open()
-
+        self.OutputText.setReadOnly(False)
+        
+        self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);""color: rgb(255, 255, 255);")  
+        
+        #self.OutputText.setTextColor(QColor(255, 0, 0))
+        #self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);")          
+        #self.OutputText.setTextColor(QColor(255, 255, 255))
+        #self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);") 
+        
+  
+        
     def update(self, keyPressed):
-        print("update")
+        print("!!!!!!!!!!!!!!update")
         #newtext = str(self.le2.text()) + str(keyPressed)  #"tab pressed "
         #self.le2.setText(newtext)
          
@@ -137,12 +156,10 @@ class Main(QWidget, ui.Ui_MainWindow):
         wig.setWindowModality(Qt.ApplicationModal) # lock sub window
         wig.show()
         
-    def clear_click(self):
-       self.OutputText.clear()
-     
-    def Timestamp_click(self):
-    
-         
+    def clear_click(self):    
+        self.OutputText.clear()             
+  
+    def Timestamp_click(self):        
         ct = datetime.datetime.now()
         ct=ct.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         #date_time = ct.strftime("%Y-%m-%d, %H:%M:%S")
@@ -152,9 +169,9 @@ class Main(QWidget, ui.Ui_MainWindow):
         print("current time: ", formated_str)   
         
         self.writeflie(formated_str)  
-        self.writeflie(" ============================== ")            
+        self.writeflie(" ============== timestamp ================ ")            
         self.writeflie("\n") 
-        
+        '''
         global Timestamp_flag        
         if Timestamp_flag==True:
             Timestamp_flag = False
@@ -162,6 +179,16 @@ class Main(QWidget, ui.Ui_MainWindow):
         else:
             Timestamp_flag = True
             self.Timestamp.setStyleSheet("background-color: rgb(0, 255, 0);")
+        '''
+        # 获取到text光标
+        textCursor = self.OutputText.textCursor()   
+                     
+        # 滚动到底部
+        textCursor.movePosition(textCursor.End)
+                    
+        # 设置光标到text中去
+        self.OutputText.setTextCursor(textCursor)
+
         
                 
     '''    
@@ -223,29 +250,25 @@ class Main(QWidget, ui.Ui_MainWindow):
                     pass
                 else:
                     Outstr=Outstr+ch[n]
-           
-            
-                #Outstr=Outstr+ch[n]
-                #print(ch[n])  
-                #print(ch[n],end='')  
+
                 n=n+1     
             
             
             #print(Outstr,end='')       
             self.writeflie(Outstr)            
-            print(ch,end='')             
+            #print(ch,end='')             
             #print("type=",type(ch))
-            print(data,end='')        
+            #print(data,end='')        
 
             data2 = data.decode('iso-8859-1')
             data2 = data2.replace('\r','') 
             
             scrollbar = self.OutputText.verticalScrollBar()
-            print("scrollbar.maximum = ", scrollbar.maximum())   
+            #print("scrollbar.maximum = ", scrollbar.maximum())   
             scrollbarAtBottom = (scrollbar.value() >= (scrollbar.maximum() - 4))
-            print("scrollbarAtBottom = ", scrollbarAtBottom)   
+            #print("scrollbarAtBottom = ", scrollbarAtBottom)   
             scrollbarPrevValue = scrollbar.value()
-            print("scrollbarPrevValue = ", scrollbarPrevValue)   
+            #print("scrollbarPrevValue = ", scrollbarPrevValue)   
             
             # 获取到text光标
             textCursor = self.OutputText.textCursor()   
@@ -266,26 +289,23 @@ class Main(QWidget, ui.Ui_MainWindow):
             if (scrollbarAtBottom):
                 self.OutputText.ensureCursorVisible()
             else:
-                self.OutputText.verticalScrollBar().setValue(scrollbarPrevValue)            
-   
-            
-            # 统计接收字符的数量
-            #self.data_num_received += num
-            #self.lineEdit.setText(str(self.data_num_received))
-                    
-               
+                self.OutputText.verticalScrollBar().setValue(scrollbarPrevValue)                      
             
         else:
             pass
 
     def openflie(self):
         global fileName
-        fileName, save = QFileDialog.getSaveFileName(self,
+        new_fileName, save = QFileDialog.getSaveFileName(self,
                   "檔案儲存",
                   "./",
                   "All Files (*);;Text Files (*.txt)")
                   
-        print(fileName)
+        print("fileName =",new_fileName)
+        if (new_fileName==""):
+            print("fileName is empty")
+        else:
+            fileName = new_fileName
 
     def writeflie(self,log):
         global fileName
@@ -297,6 +317,7 @@ class Main(QWidget, ui.Ui_MainWindow):
     # 视图-浏览器字体颜色设置
     def browser_word_color(self):
         col = QColorDialog.getColor(self.OutputText.textColor(), self, "文字顏色設定")
+        print("col = ", col)
         if col.isValid():
             self.OutputText.setTextColor(col)
 
@@ -308,9 +329,67 @@ class Main(QWidget, ui.Ui_MainWindow):
                 "background-color: rgb({}, {}, {});".format(col.red(), col.green(), col.blue()))
 
 
+    def eventFilter(self, obj, event):
+        #print(obj, event.type())
+        #print("event.key === ",event.key()) 
+        '''
+        if event.type() == QEvent.KeyPress:
+            print("=======KeyPress===========") 
+            if event.key()== Qt.Key_Tab:
+                print("event = ",event.text()) 
+                input_s = event.text()
+                input_s = (input_s).encode('utf-8')            
+                ser.write(input_s)
+                return False
+        '''    
+        if event.type() == QEvent.KeyPress:
+            #print("event.key pressed()=", event.key())
+            return True
+        
+        if event.type() == QEvent.KeyRelease:            
+            global port_open
+            if port_open==False:
+                return True
+                         
+            if (self.OutputText.hasFocus()==True):
+                #print("event.key = ",event.key()) 
+                # 获取到text光标
+                textCursor = self.OutputText.textCursor()                            
+                # 滚动到底部
+                textCursor.movePosition(textCursor.End)                        
+                # 设置光标到text中去
+                self.OutputText.setTextCursor(textCursor)
+                                   
+                print("event.key()=", event.key())
+                
+                if event.key()==16777220: # Enter key
+                    print("event.key()=", event.key())
+                    #input_s = ""
+                    input_s = ('\n').encode('utf-8')
+                elif event.key()==16777249:  # ^C
+                    print("event.key()=", event.key())
+                    return True
+                #elif event.key()==67:  # 
+                #    print("event.key()=", event.key())
+                #    return True                    
+                else:
+                    #key = eventQKeyEvent.key()
+
+                    print("event = ",event.text()) 
+                    print("event.key = ",event.key()) 
+                    input_s = event.text()
+                    input_s = (input_s).encode('utf-8')            
+                
+                ser.write(input_s)
+                return True
+
+        return False # will not be filtered out (ie. event will be processed)
+        
+        
+
     '''
     def event(self, event):     
-        print("event.type()=",event.type())  
+        print("event.type()=")  
         #if port_open == False:
         #    return True
                
@@ -327,12 +406,12 @@ class Main(QWidget, ui.Ui_MainWindow):
         #    print("event.key()",event.key())  
             
 
-        return  event(self, event)
-        '''
+        #return  event(self, event)
+    '''    
         
         
 #if (self.OutputText.hasFocus()==True):       
-    
+    '''
     def keyReleaseEvent(self, event):#eventQKeyEvent
         global port_open
         if port_open==False:
@@ -345,10 +424,19 @@ class Main(QWidget, ui.Ui_MainWindow):
             textCursor.movePosition(textCursor.End)                        
             # 设置光标到text中去
             self.OutputText.setTextCursor(textCursor)
+            
+            if event.key()== Qt.Key_Tab: # Tab key
+                print("=================Key_Tab=====================") 
+                print("event = ", event.key()) 
+                print("=================Key_Tab=====================")             
         
             if event.key()==16777220: # Enter key
                 #input_s = ""
                 input_s = ('\n').encode('utf-8')
+            #elif event.key()== Qt.Key_Tab: # Tab key
+            #    print("=================Key_Tab=====================") 
+            #    print("event = ", event.key()) 
+            #    print("=================Key_Tab=====================") 
             else:
                 #key = eventQKeyEvent.key()
 
@@ -357,7 +445,7 @@ class Main(QWidget, ui.Ui_MainWindow):
                 input_s = (input_s).encode('utf-8')            
             
             ser.write(input_s)
-            
+    '''        
     
 
     
@@ -488,7 +576,8 @@ class Sub(QWidget,config.Ui_Configure):
         except:
             print("comport is not in list")
             
-    
+
+
 if __name__ == '__main__':
     global port_open
     global Timestamp_flag
@@ -496,24 +585,35 @@ if __name__ == '__main__':
     global first_line_character
     global fileName
     
+    CURRENT_PACKAGE_DIRECTORY = os.path.abspath('.')    
+    
+    print (CURRENT_PACKAGE_DIRECTORY)
+    
+    Log_DIRECTORY = CURRENT_PACKAGE_DIRECTORY + '\\log' 
+    
+    if os.path.exists(Log_DIRECTORY):
+        print("Log目錄已存在。")   	
+    else:       
+        # 使用 try 建立目錄
+        try:
+            os.makedirs(Log_DIRECTORY)
+        # 檔案已存在的例外處理
+        except FileExistsError:
+            print("Log目錄已存在。")   
+    
+    
     now = datetime.datetime.now()
     fileName = now.strftime("%Y-%m")+".txt"   
+    
+    fileName=os.path.join(Log_DIRECTORY,fileName)
+    
     print (fileName)
     
     port_open = False
-    Timestamp_flag = False
+    Timestamp_flag = True
     log_to_file_flag = False
     first_line_character = True
         
-
-    '''
-    comport = 0
-    baudrate = 115200
-    parity = 0
-    databits = 3
-    stopbits =0
-    '''
-    
     port_list = None
     port_str_list = []  
         

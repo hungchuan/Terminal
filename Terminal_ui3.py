@@ -79,7 +79,7 @@ class Ui_MainWindow(object):
         self.OutputText.setSizePolicy(sizePolicy)
         self.OutputText.setMouseTracking(False)
         self.OutputText.setFocusPolicy(QtCore.Qt.StrongFocus)
-        self.OutputText.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
+        self.OutputText.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)      
         self.OutputText.setReadOnly(True)
         self.OutputText.setObjectName("OutputText")
         self.gridLayout_2.addWidget(self.OutputText, 1, 0, 1, 1)
