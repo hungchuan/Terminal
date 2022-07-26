@@ -363,12 +363,55 @@ class Main(QWidget, ui.Ui_MainWindow):
                 print("event.key()=", event.key())
                 
                 if event.key()==16777220: # Enter key
-                    print("event.key()=", event.key())
+                    print("event.key()= Enter", event.key())
                     #input_s = ""
-                    input_s = ('\n').encode('utf-8')
+                    #input_s = ('\n').encode('utf-8')
+                    input_s = ('\r').encode('utf-8')
                 elif event.key()==16777249:  # ^C
                     print("event.key()=", event.key())
                     return True
+                elif event.key()==16777235:  # up
+                    '''
+                    # 获取到text光标
+                    textCursor = self.OutputText.textCursor()   
+                                 
+                    # 滚动到底部
+                    textCursor.movePosition(textCursor.End)
+                    # 移动光标到行首
+                    self.OutputText.moveCursor(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+                    # 重新设置值
+                    self.OutputText.insertPlainText("")   
+                    textCursor.removeSelectedText()
+                    self.OutputText.setTextCursor(textCursor)      
+                    '''
+
+                    
+                    cursor = self.OutputText.textCursor()
+                    self.OutputText.moveCursor(QTextCursor.StartOfLine)
+                    cursor.movePosition(QTextCursor.End)                    
+                    cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.KeepAnchor, 1)
+                    cursor.removeSelectedText()
+                    self.OutputText.setTextCursor(cursor)    
+                    
+                    #self.OutputText.moveCursor(QTextCursor.PreviousBlock, QTextCursor.MoveAnchor)
+                    #self.OutputText.setTextCursor(textCursor)  
+                     
+
+                    #return True       
+                    input_s = ( bytes.fromhex('1b5b41').decode('utf-8')).encode('utf-8')       
+                elif event.key()==16777237:  # down
+                    cursor = self.OutputText.textCursor()
+                    self.OutputText.moveCursor(QTextCursor.StartOfLine)
+                    cursor.movePosition(QTextCursor.End)                    
+                    cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.KeepAnchor, 1)
+                    cursor.removeSelectedText()
+                    self.OutputText.setTextCursor(textCursor)    
+                    
+                    input_s = ( bytes.fromhex('1b5b42').decode('utf-8')).encode('utf-8')       
+                elif event.key()==16777234:  # left
+                    input_s = ( bytes.fromhex('1b5b44').decode('utf-8')).encode('utf-8')       
+                elif event.key()==16777236:  # right
+                    input_s = ( bytes.fromhex('1b5b44').decode('utf-8')).encode('utf-8')           
                 #elif event.key()==67:  # 
                 #    print("event.key()=", event.key())
                 #    return True                    
