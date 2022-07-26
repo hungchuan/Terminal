@@ -6,3 +6,5 @@ pyinstaller -F -w --onefile --icon=D:\Ryan\Project\Git\Terminal\Icon.ico Termina
 pyinstaller -D -w --icon=D:\Ryan\Project\Git\Terminal\Icon.ico Terminal_main.py
 
 conda create --name py37 python=3.7
+
+git remote set-url origin git@github.com:hungchuan/Terminal.git
