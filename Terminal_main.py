@@ -13,14 +13,26 @@ import configure as config
 import datetime
 import configparser
 import icon
+import struct
+import binascii
+import inspect
+
+Maxlines = 10
+MaxlinesInputed = 0
 
 class Main(QWidget, ui.Ui_MainWindow):
     print("class Main")    
     def __init__(self):
+        global modbus_mode
+        global cmd_format
+        global Maxlines
+
+        
         print("Main__init__")   
         super().__init__()
         self.setupUi(self)
         self.Connect.setAutoFillBackground(True)
+        self.Debug.setAutoFillBackground(True)
 
         self.Configure.clicked.connect(self.Configure_click)
 
@@ -29,7 +41,12 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.Clear.clicked.connect(self.clear_click)
         self.Timestamp.clicked.connect(self.Timestamp_click)
         self.log.clicked.connect(self.openflie)
-        self.command.returnPressed.connect(self.command_function) #Press Enter callback 
+        #self.command.returnPressed.connect(self.command_function) #Press Enter callback 
+        self.Debug.clicked.connect(self.Debug_click)
+        #self.MBCMD.returnPressed.connect(self.MBCMD_function) #Press Enter callback 
+        
+        self.tabWidget.currentChanged.connect(self.on_tab_changed)
+        
         self.Connect.setStyleSheet("background-color: rgb(255, 0, 0);")  
         self.Timestamp.setStyleSheet("background-color: rgb(0, 255, 0);")  
         self.OutputText.setFont(QFont('Consolas', 9))
@@ -40,12 +57,14 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.Timestamp.setFocusPolicy(Qt.ClickFocus)
         self.log.setFocusPolicy(Qt.ClickFocus)
         self.Connect.setFocusPolicy(Qt.ClickFocus)
+        self.Debug.setFocusPolicy(Qt.ClickFocus)
         self.OutputText.setFocusPolicy(Qt.ClickFocus)
         self.command.setFocusPolicy(Qt.ClickFocus)        
         self.frame.setFocusPolicy(Qt.ClickFocus)         
         self.setFocusPolicy(Qt.ClickFocus)       
         
         self.OutputText.installEventFilter(self)
+        self.command.installEventFilter(self)
       
         # 定时器接收数据
         self.timer = QTimer(self)
@@ -58,18 +77,42 @@ class Main(QWidget, ui.Ui_MainWindow):
         
         #self.le.signalTabPressed[str].connect(self.update)
         
+        self.CmdType.currentIndexChanged.connect(self.CmdTypeChange)
+        self.CmdType_list = ["ASCII", "HEX"]
+        self.CmdType.addItems(self.CmdType_list)   
+        if (modbus_mode == "ascii"):
+            cmd_format = "ASCII"
+            self.CmdType.setCurrentIndex(0)
+        else:
+            cmd_format = "HEX"
+            self.CmdType.setCurrentIndex(1)       
+         
+        
         print("baudrate = ",ser.baudrate)   
         self.com_open()
         self.OutputText.setReadOnly(False)
         
         self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);""color: rgb(255, 255, 255);")  
+        self.MBOutputText.setStyleSheet("background-color: rgb(0, 0, 0);""color: rgb(255, 255, 255);")  
+        
+        self.printlinefilefunc()
+        
+        self.lines = [""] * Maxlines  # 初始化一個包含50個空字串的列表
+        self.current_index = 0  # 初始化當前索引   
+        self.print_index = 0  # 初始化當前索引   
         
         #self.OutputText.setTextColor(QColor(255, 0, 0))
         #self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);")          
         #self.OutputText.setTextColor(QColor(255, 255, 255))
         #self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);") 
         
-  
+    def printlinefilefunc(self):
+        callerframerecord = inspect.stack()[1]
+        frame = callerframerecord[0]
+        info = inspect.getframeinfo(frame)
+        print("info = ",info.filename,info.function,info.lineno )
+        print("Function = ",info.function)
+        print("Line = ",info.lineno)
         
     def update(self, keyPressed):
         print("!!!!!!!!!!!!!!update")
@@ -83,7 +126,25 @@ class Main(QWidget, ui.Ui_MainWindow):
             self.com_open()
         else:
             self.com_close()      
-         
+
+    def Debug_click(self):
+        global Debug_mode
+        print("Debug_click")
+        if port_open == False:
+            return        
+        if (Debug_mode=="off"):
+            Debug_mode = "on"
+            input_s = "$ DEBUG ON"
+            self.Debug.setText("DEBUG ON")
+            self.Debug.setStyleSheet("background-color: rgb(255, 0, 0);")  
+        else:
+            Debug_mode = "off"
+            input_s = "$ DEBUG OFF"
+            self.Debug.setText("DEBUG OFF")
+            self.Debug.setStyleSheet("background-color: rgb(200, 200, 200);")  
+        input_s = (input_s + '\n').encode('utf-8')       
+        ser.write(input_s) 
+            
     def com_open(self):
         #ser.baudrate = 115200
         print("com_open")
@@ -92,8 +153,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         print("ser.parity =",ser.parity )   
         print("ser.bytesize =",ser.bytesize )       
         print("ser.stopbits =",ser.stopbits )   
-       
-        
+             
         if (ser.port==None)|(ser.port==""):
             self.Configure_click()
         else:
@@ -121,9 +181,15 @@ class Main(QWidget, ui.Ui_MainWindow):
         ser.close()
         self.Connect.setStyleSheet("background-color: rgb(255, 0, 0);")  
         self.Connect.setText("Disconnect")
+        self.Debug.setStyleSheet("background-color: rgb(200, 200, 200);")  
+        self.Debug.setText("DEBUG OFF")        
     
     def command_function(self):
+        global modbus_mode
+        global Maxlines
+        global MaxlinesInputed
         print ("port_open = ",port_open)
+        
         if port_open == False:
             return
 
@@ -136,13 +202,33 @@ class Main(QWidget, ui.Ui_MainWindow):
         # 设置光标到text中去
         self.OutputText.setTextCursor(textCursor)
         
-        input_s = self.command.text()
+        print ("modbus_mode =", modbus_mode)
+        if (modbus_mode == "ascii"):
+            input_s = self.command.text()
+            self.command.clear()
+            input_s = (input_s + '\n').encode('utf-8')
+            print ("input_s =", input_s)        
+            ser.write(input_s)
+        else:
+            # 获取用户输入的十六进制数据
+            input_s = self.command.text()
+            hex_values = input_s.replace(' ', '').split()
+            bytes_data = bytes.fromhex(''.join(hex_values))
+            self.command.clear()
+            # 发送Modbus请求
+            self.send_modbus_request(ser, bytes_data)
+            input_s = (input_s + '\n').encode('utf-8')    
+        
+        input_s_new = input_s[:-1]
+        #存储到lines数组中               
+        self.lines[self.current_index] = input_s_new.decode('utf-8')  
+        self.current_index = (self.current_index + 1) % Maxlines  # 保证索引在0到49之间循环     
+        self.print_index = self.current_index
 
-        self.command.clear()
-        input_s = (input_s + '\n').encode('utf-8')
-        print ("input_s =", input_s)        
-        ser.write(input_s)
-
+        MaxlinesInputed = MaxlinesInputed+1
+        if (MaxlinesInputed>Maxlines):
+            MaxlinesInputed = Maxlines+1      
+        
         #wig.close()
         
     def Configure_click(self): 
@@ -210,6 +296,7 @@ class Main(QWidget, ui.Ui_MainWindow):
 
     # 接收数据
     def data_receive(self):
+        global modbus_mode
         global first_line_character
         
         try:
@@ -222,6 +309,12 @@ class Main(QWidget, ui.Ui_MainWindow):
             num = len(data)
             
             print(data,end='')   
+            #print("data_receive=",data)
+            #current_index = self.tabWidget.currentIndex()
+
+            if (modbus_mode == "rtu"):                                
+                response_data_hex = ' '.join(['{:02X}'.format(byte) for byte in data])
+                #self.OutputText.append(response_data_hex)
             
             timestamp_now = datetime.datetime.now()
             timestamp_now=timestamp_now.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
@@ -283,7 +376,11 @@ class Main(QWidget, ui.Ui_MainWindow):
                      
             # 串口接收到的字符串为b'123',要转化成unicode字符串才能输出到窗口中去
             #self.OutputText.insertPlainText(data2.decode('iso-8859-1'))
-            self.OutputText.insertPlainText(data2)
+            if (modbus_mode == "rtu"):
+                self.OutputText.append(response_data_hex)
+            else:
+                self.OutputText.insertPlainText(data2)     
+                        
             #self.OutputText.append(data2)
             
             if (scrollbarAtBottom):
@@ -330,6 +427,7 @@ class Main(QWidget, ui.Ui_MainWindow):
 
 
     def eventFilter(self, obj, event):
+        global Maxlines
         #print(obj, event.type())
         #print("event.key === ",event.key()) 
         '''
@@ -342,6 +440,38 @@ class Main(QWidget, ui.Ui_MainWindow):
                 ser.write(input_s)
                 return False
         '''    
+        if (event.type() == QEvent.KeyPress and obj is self.command):
+            print('key press in command:', (event.key(), event.text()))
+            print('print_index:', self.print_index)
+            
+            if event.key()==16777220: # Enter key
+                self.command_function()
+            elif event.key()==16777235:  # up
+                if (self.print_index>0):
+                    self.print_index = self.print_index-1
+                else:
+                    if (MaxlinesInputed>=Maxlines):
+                        self.print_index = Maxlines-1
+                    else:
+                        self.print_index = self.current_index-1
+                print('print_index up:', self.print_index)  
+                self.command.setText(self.lines[self.print_index])  
+            elif event.key()==16777237:  # down
+                
+                print('print_index dw:', self.print_index)  
+                print('current_index dw:', self.current_index)  
+                if (MaxlinesInputed>=Maxlines):
+                    self.print_index = (self.print_index + 1) % Maxlines
+                else:
+                    if (self.print_index<self.current_index):
+                        self.print_index = self.print_index+1
+                    
+                self.command.setText(self.lines[self.print_index])             
+                
+            return False
+        elif (event.type() == QEvent.KeyPress and obj is self.OutputText):
+            print('key press in OutputText:', (event.key(), event.text()))
+            
         if event.type() == QEvent.KeyPress:
             #print("event.key pressed()=", event.key())
             return True
@@ -367,6 +497,7 @@ class Main(QWidget, ui.Ui_MainWindow):
                     #input_s = ""
                     #input_s = ('\n').encode('utf-8')
                     input_s = ('\r').encode('utf-8')
+                    
                 elif event.key()==16777249:  # ^C
                     print("event.key()=", event.key())
                     return True
@@ -423,13 +554,120 @@ class Main(QWidget, ui.Ui_MainWindow):
                     input_s = event.text()
                     input_s = (input_s).encode('utf-8')            
                 
-                ser.write(input_s)
+                ser.write(input_s) 
+                
                 return True
 
         return False # will not be filtered out (ie. event will be processed)
         
+    def calculate_crc(self,data):
+        crc = 0xFFFF
+        for byte in data:
+            crc ^= byte
+            for _ in range(8):
+                if crc & 0x0001:
+                    crc >>= 1
+                    crc ^= 0xA001
+                else:
+                    crc >>= 1
+        return crc        
+
+    def send_modbus_request(self,serial_port, request_data):
+
+        # 计算CRC
+        crc = self.calculate_crc(request_data)
+        print("RTU CRC:", hex(crc))
+        crc_bytes = struct.pack('<H', crc)
+        
+        print("write:", request_data + crc_bytes)
+        #self.MBOutputText.insertPlainText(request_data + crc_bytes)  
+        
+        # 將字節串轉換為十六進制字符串
+        request_hex = binascii.hexlify(request_data + crc_bytes).decode('utf-8')
+
+        # 印出要傳送的資料到 MBOutputText
+        request_str = " ".join(request_hex[i:i+2] for i in range(0, len(request_hex), 2))
+        self.OutputText.append(request_str)        
+
+        self.timer.start(50)
+        # 发送请求数据
+        serial_port.write(request_data + crc_bytes)
         
 
+    def receive_modbus_response(self,serial_port):
+        response_received = threading.Event()
+
+        def read_response():
+            nonlocal response_received
+            response_data = serial_port.read(1024)
+            if response_data:
+                print("response：", response_data)
+                response_data_hex = ' '.join(['{:02X}'.format(byte) for byte in response_data])
+                self.OutputText.append(response_data_hex)
+            else:
+                print("no response 1")
+
+            response_received.set()
+
+        response_thread = threading.Thread(target=read_response)
+        response_thread.start()
+
+        # 等待響應，最多等待1秒
+        response_received.wait(timeout=1)
+
+        if not response_received.is_set():
+            print("no response 2")
+        
+    def MBCMD_function(self):
+        #ser2 = serial.Serial('COM10', 19200, parity=serial.PARITY_EVEN, bytesize=8, stopbits=1, timeout=1)
+
+        print ("port_open = ",port_open)
+        if port_open == False:
+            return 
+        
+        # 获取到text光标
+        MBtextCursor = self.MBOutputText.textCursor()   
+                     
+        # 滚动到底部
+        MBtextCursor.movePosition(MBtextCursor.End)
+                    
+        # 设置光标到text中去
+        self.MBOutputText.setTextCursor(MBtextCursor)
+        
+        # 获取用户输入的十六进制数据
+        input_text = self.MBCMD.text()
+        hex_values = input_text.replace(' ', '').split()
+        bytes_data = bytes.fromhex(''.join(hex_values))
+
+        #self.MBCMD.clear()
+        
+        # 发送Modbus请求
+        self.send_modbus_request(ser, bytes_data)
+
+        # 接收Modbus响应
+        #self.receive_modbus_response(ser)        
+        
+    def on_tab_changed(self, index):
+        self.com_close()
+        print("Switched to tab:", index)
+        if (0==index):
+            ser.timeout = 0.01
+            self.timer.start(2)
+        elif (1==index):
+            ser.timeout = 0.1
+        else:    
+            ser.timeout = 0.01
+            self.timer.start(2)
+        self.com_open()
+       
+    def CmdTypeChange(self, index):
+        global cmd_format
+        print("Switched to index:", index)        
+        if (0==index):
+            cmd_format = "ASCII"
+        elif (1==index):
+            cmd_format = "HEX"
+            
     '''
     def event(self, event):     
         print("event.type()=")  
@@ -507,6 +745,7 @@ class Main(QWidget, ui.Ui_MainWindow):
 class Sub(QWidget,config.Ui_Configure):
     print("class Sub")    
     def __init__(self):
+        global modbus_mode
         print("Sub__init__")    
         super().__init__()
         self.setupUi(self)
@@ -522,7 +761,8 @@ class Sub(QWidget,config.Ui_Configure):
         self.databit.addItems(self.databit_list)     
         self.stopbit_list = ["1", "2"]
         self.stopbit.addItems(self.stopbit_list)   
-        
+        self.modbus_list = ["ascii", "rtu"]
+        self.ModbusType.addItems(self.modbus_list)          
         print("baud_index = ", self.baud_list.index(str(ser.baudrate))) 
       
         self.BaudRate.setCurrentIndex(self.baud_list.index(str(ser.baudrate)))  
@@ -540,10 +780,15 @@ class Sub(QWidget,config.Ui_Configure):
         
         self.databit.setCurrentIndex(ser.bytesize-5)        
         self.stopbit.setCurrentIndex(ser.stopbits-1)     
+        
+        if (modbus_mode == "ascii"):
+            self.ModbusType.setCurrentIndex(0) 
+        else:
+            self.ModbusType.setCurrentIndex(1)     
            
         
     def configureClose(self): 
-           
+        global modbus_mode
         ser.port =  self.comport.currentText()
         print("ser.port = ",ser.port)  
         
@@ -577,6 +822,11 @@ class Sub(QWidget,config.Ui_Configure):
         elif (stopbits == 1):
             ser.stopbits = serial.STOPBITS_TWO;        
         
+        modbus_index = self.ModbusType.currentIndex()
+        if (modbus_index == 0):
+            modbus_mode = "ascii"
+        elif (modbus_index == 1):
+            modbus_mode = "rtu" 
         
         if (ser.isOpen()): # open success
             print("opened already")  
@@ -591,10 +841,16 @@ class Sub(QWidget,config.Ui_Configure):
         config_w.set('SystemSettings','parity',ser.parity)
         config_w.set('SystemSettings','databits',str(ser.bytesize))
         config_w.set('SystemSettings','stopbits',str(ser.stopbits))
+        config_w.set('SystemSettings','modbus',str(modbus_mode))
+
         
         config_w.write(open('config.ini',"w+"))
-
-    
+        
+        if (modbus_mode == "ascii"):
+            ser.timeout = 0.01
+        else:
+            ser.timeout = 0.1
+        
         wig.close()
  
     def comport_clear(self): 
@@ -627,7 +883,11 @@ if __name__ == '__main__':
     global log_to_file_flag
     global first_line_character
     global fileName
+    global modbus_mode
+    global cmd_format
+    global Debug_mode
     
+    Debug_mode = "off"
     CURRENT_PACKAGE_DIRECTORY = os.path.abspath('.')    
     
     print (CURRENT_PACKAGE_DIRECTORY)
@@ -673,6 +933,9 @@ if __name__ == '__main__':
         ser.port = "COM1"
         config_w['SystemSettings']['comport'] = "COM1"
         config_w.write(open('config.ini',"w+"))  
+        
+    if (ser.port==None)|(ser.port==""):
+        ser.port = "COM1"
     
     try:
         ser.baudrate = int(config['SystemSettings']['baudrate'])
@@ -701,13 +964,28 @@ if __name__ == '__main__':
         ser.stopbits = 1
         config_w['SystemSettings']['stopbits'] = "1"
         config_w.write(open('config.ini',"w+"))  
-          
+
+    try:
+        modbus_mode = config['SystemSettings']['modbus'] 
+    except:
+        modbus_mode = "ascii"
+        config_w['SystemSettings']['modbus'] = "ascii"
+        config_w.write(open('config.ini',"w+"))  
+
+    if (modbus_mode == "ascii"):
+        ser.timeout = 0.01
+    else:
+        ser.timeout = 0.1
     
     print("ser.port =",ser.port )   
     print("ser.baudrate =",ser.baudrate )      
     print("ser.parity =",ser.parity )   
     print("ser.bytesize =",ser.bytesize )       
     print("ser.stopbits =",ser.stopbits ) 
+    print("modbus_mode =",modbus_mode ) 
+    
+    
+    #ser = serial.Serial('COM10', 19200, parity=serial.PARITY_EVEN, bytesize=8, stopbits=1, timeout=1)
 
     app = QtWidgets.QApplication(sys.argv)
     window = Main()
