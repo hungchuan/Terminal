@@ -16,6 +16,9 @@ import icon
 import struct
 import binascii
 import inspect
+from PyQt5 import QtCore
+import pandas as pd
+
 
 Maxlines = 10
 MaxlinesInputed = 0
@@ -46,6 +49,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         #self.MBCMD.returnPressed.connect(self.MBCMD_function) #Press Enter callback 
         
         self.tabWidget.currentChanged.connect(self.on_tab_changed)
+        
         
         self.Connect.setStyleSheet("background-color: rgb(255, 0, 0);")  
         self.Timestamp.setStyleSheet("background-color: rgb(0, 255, 0);")  
@@ -99,12 +103,55 @@ class Main(QWidget, ui.Ui_MainWindow):
         
         self.lines = [""] * Maxlines  # 初始化一個包含50個空字串的列表
         self.current_index = 0  # 初始化當前索引   
-        self.print_index = 0  # 初始化當前索引   
+        self.print_index = 0  # 初始化當前索引
         
-        #self.OutputText.setTextColor(QColor(255, 0, 0))
-        #self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);")          
-        #self.OutputText.setTextColor(QColor(255, 255, 255))
-        #self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);") 
+
+        # 读取Device.xlsx中的Device分頁
+        self.loadDevices()  
+        # 连接 Device 选择变化的信号到处理函数
+        self.Device.currentIndexChanged.connect(self.load_functions)        
+        
+        # 在Reg標籤頁添加16x16表格
+        self.tableWidget = QTableWidget(16, 16, self.tab_3)
+        self.tableWidget.setGeometry(QtCore.QRect(10, 100, 500, 500))  # 調整表格位置和大小
+        self.tableWidget.setObjectName("tableWidget")
+             
+        # 設置表格的標題
+        self.tableWidget.setHorizontalHeaderLabels([f'0x{i:X}' for i in range(16)])
+        self.tableWidget.setVerticalHeaderLabels([f'0x{i*16:02X}' for i in range(16)])
+        
+
+        # 新增 1x16 的表格
+        self.smallTableWidget = QTableWidget(1, 16, self.tab_3)
+        self.smallTableWidget.setGeometry(QtCore.QRect(10, 550, 700, 30))  # 调整表格位置和大小
+        # 设置表格的标题（bit15 到 bit0）
+        self.smallTableWidget.setHorizontalHeaderLabels([f'bit{i}' for i in range(15, -1, -1)])
+        self.smallTableWidget.setVerticalHeaderLabels(['Data'])  # 显示行标题       
+        
+        # 添加布局以使表格随窗口缩放
+        self.layout = QVBoxLayout(self.tab_3)
+        self.layout.addWidget(self.label)
+        self.layout.addWidget(self.tableWidget)
+        self.layout.addWidget(self.smallTableWidget)
+        
+        # 设置伸缩因子以调整高度比例
+        self.layout.setStretch(0, 3)  # label占比1
+        self.layout.setStretch(1, 30)  # tableWidget占比9
+        self.layout.setStretch(2, 3)  # smallTableWidget占比1
+        
+        self.label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.tableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.smallTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        
+        self.tab_3.setLayout(self.layout)     
+
+        # 調整每一列的寬度為40
+        for i in range(16):
+            self.tableWidget.setColumnWidth(i, 40)
+            self.smallTableWidget.setColumnWidth(i, 40)
+               
+        self.resize(800, 700)  # 窗口的宽度和高度
+        
         
     def printlinefilefunc(self):
         callerframerecord = inspect.stack()[1]
@@ -648,8 +695,9 @@ class Main(QWidget, ui.Ui_MainWindow):
         #self.receive_modbus_response(ser)        
         
     def on_tab_changed(self, index):
-        self.com_close()
         print("Switched to tab:", index)
+        '''
+        self.com_close()
         if (0==index):
             ser.timeout = 0.01
             self.timer.start(2)
@@ -659,7 +707,8 @@ class Main(QWidget, ui.Ui_MainWindow):
             ser.timeout = 0.01
             self.timer.start(2)
         self.com_open()
-       
+        '''
+        
     def CmdTypeChange(self, index):
         global cmd_format
         print("Switched to index:", index)        
@@ -667,7 +716,33 @@ class Main(QWidget, ui.Ui_MainWindow):
             cmd_format = "ASCII"
         elif (1==index):
             cmd_format = "HEX"
-            
+
+    def loadDevices(self):
+        # 读取Device.xlsx中的Device分頁
+        df = pd.read_excel('Device.xlsx', sheet_name='Device')
+        
+        # 检查列名
+        if 'Device' in df.columns:
+            devices = df['Device'].dropna().tolist()
+        else:
+            print('Device 列未找到')
+        
+        self.Device.addItems(devices)
+        self.Device.setCurrentIndex(0)
+        self.load_functions()
+
+    def load_functions(self):
+        # 获取当前选中的设备名称
+        selected_device = self.Device.currentText()
+
+        if selected_device:
+            # 读取相应设备分页的内容
+            df = pd.read_excel('Device.xlsx', sheet_name=selected_device)
+
+            # 获取A2开始的内容
+            functions = df.iloc[:, 0].dropna().tolist()
+            self.Function.clear()
+            self.Function.addItems(functions)        
     '''
     def event(self, event):     
         print("event.type()=")  

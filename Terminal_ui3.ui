@@ -23,54 +23,6 @@
   <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
     <layout class="QGridLayout" name="gridLayout">
-     <item row="0" column="4">
-      <widget class="QFrame" name="frame">
-       <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
-       </property>
-       <property name="frameShadow">
-        <enum>QFrame::Raised</enum>
-       </property>
-       <widget class="QPushButton" name="Clear">
-        <property name="geometry">
-         <rect>
-          <x>370</x>
-          <y>0</y>
-          <width>75</width>
-          <height>23</height>
-         </rect>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Clear</string>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="Debug">
-        <property name="geometry">
-         <rect>
-          <x>0</x>
-          <y>0</y>
-          <width>75</width>
-          <height>23</height>
-         </rect>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>DEBUG OFF</string>
-        </property>
-       </widget>
-      </widget>
-     </item>
      <item row="0" column="2">
       <widget class="QPushButton" name="log">
        <property name="sizePolicy">
@@ -126,12 +78,48 @@
        </property>
       </widget>
      </item>
+     <item row="0" column="5">
+      <widget class="QPushButton" name="Clear">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="text">
+        <string>Clear</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="6">
+      <widget class="QFrame" name="frame">
+       <property name="frameShape">
+        <enum>QFrame::StyledPanel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Raised</enum>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="4">
+      <widget class="QPushButton" name="Debug">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="text">
+        <string>DEBUG OFF</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </item>
    <item row="1" column="0">
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
-      <number>0</number>
+      <number>2</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
@@ -187,18 +175,6 @@
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
-         <property name="minimumSize">
-          <size>
-           <width>753</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>753</width>
-           <height>16777215</height>
-          </size>
-         </property>
          <property name="mouseTracking">
           <bool>false</bool>
          </property>
@@ -222,22 +198,22 @@
       <attribute name="title">
        <string>Reg</string>
       </attribute>
-      <widget class="QComboBox" name="comboBox_2">
+      <widget class="QComboBox" name="Device">
        <property name="geometry">
         <rect>
-         <x>45</x>
-         <y>0</y>
-         <width>111</width>
+         <x>50</x>
+         <y>5</y>
+         <width>120</width>
          <height>20</height>
         </rect>
        </property>
       </widget>
-      <widget class="QComboBox" name="comboBox_3">
+      <widget class="QComboBox" name="Function">
        <property name="geometry">
         <rect>
          <x>230</x>
-         <y>0</y>
-         <width>81</width>
+         <y>5</y>
+         <width>120</width>
          <height>20</height>
         </rect>
        </property>
@@ -246,7 +222,7 @@
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>5</y>
+         <y>10</y>
          <width>47</width>
          <height>12</height>
         </rect>
@@ -259,13 +235,68 @@
        <property name="geometry">
         <rect>
          <x>180</x>
-         <y>5</y>
+         <y>10</y>
          <width>47</width>
          <height>12</height>
         </rect>
        </property>
        <property name="text">
         <string>Function</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="Read_Reg">
+       <property name="geometry">
+        <rect>
+         <x>360</x>
+         <y>5</y>
+         <width>75</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Read</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="ReadAll">
+       <property name="geometry">
+        <rect>
+         <x>440</x>
+         <y>5</y>
+         <width>75</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Read All</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="WriteAll">
+       <property name="geometry">
+        <rect>
+         <x>520</x>
+         <y>5</y>
+         <width>75</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Write All</string>
+       </property>
+      </widget>
+      <widget class="QFrame" name="frame_2">
+       <property name="geometry">
+        <rect>
+         <x>600</x>
+         <y>0</y>
+         <width>60</width>
+         <height>25</height>
+        </rect>
+       </property>
+       <property name="frameShape">
+        <enum>QFrame::StyledPanel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Raised</enum>
        </property>
       </widget>
      </widget>
