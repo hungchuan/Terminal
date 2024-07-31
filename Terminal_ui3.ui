@@ -213,7 +213,7 @@
         <rect>
          <x>230</x>
          <y>5</y>
-         <width>120</width>
+         <width>211</width>
          <height>20</height>
         </rect>
        </property>
@@ -247,7 +247,7 @@
       <widget class="QPushButton" name="Read_Reg">
        <property name="geometry">
         <rect>
-         <x>360</x>
+         <x>450</x>
          <y>5</y>
          <width>75</width>
          <height>20</height>
@@ -260,7 +260,7 @@
       <widget class="QPushButton" name="ReadAll">
        <property name="geometry">
         <rect>
-         <x>440</x>
+         <x>530</x>
          <y>5</y>
          <width>75</width>
          <height>20</height>
@@ -273,7 +273,7 @@
       <widget class="QPushButton" name="WriteAll">
        <property name="geometry">
         <rect>
-         <x>520</x>
+         <x>610</x>
          <y>5</y>
          <width>75</width>
          <height>20</height>

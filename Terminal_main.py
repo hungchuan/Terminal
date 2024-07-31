@@ -22,6 +22,9 @@ import pandas as pd
 
 Maxlines = 10
 MaxlinesInputed = 0
+SelectedCol = 100
+SelectedRow = 100
+
 
 class Main(QWidget, ui.Ui_MainWindow):
     print("class Main")    
@@ -137,7 +140,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         # 设置伸缩因子以调整高度比例
         self.layout.setStretch(0, 3)  # label占比1
         self.layout.setStretch(1, 30)  # tableWidget占比9
-        self.layout.setStretch(2, 3)  # smallTableWidget占比1
+        self.layout.setStretch(2, 3)  # smallTableWidget占比1      
         
         self.label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.tableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -148,11 +151,50 @@ class Main(QWidget, ui.Ui_MainWindow):
         # 調整每一列的寬度為40
         for i in range(16):
             self.tableWidget.setColumnWidth(i, 40)
+            self.tableWidget.horizontalHeader().setSectionResizeMode(i,QHeaderView.Fixed); #fixed width 
             self.smallTableWidget.setColumnWidth(i, 40)
-               
+            self.smallTableWidget.horizontalHeader().setSectionResizeMode(i,QHeaderView.Fixed); #fixed width 
+
+        # 設置內容置中tableWidget
+        for row in range(16):
+            for col in range(16):
+                item = self.tableWidget.item(row, col) or QTableWidgetItem("")
+                item.setTextAlignment(QtCore.Qt.AlignCenter)
+                self.tableWidget.setItem(row, col, item)
+
+        # 設置內容置中smallTableWidget
+        for col in range(16):
+            item = self.smallTableWidget.item(0, col) or QTableWidgetItem("")
+            item.setTextAlignment(QtCore.Qt.AlignCenter)
+            self.smallTableWidget.setItem(0, col, item)
+                
+                
+        # Set the last two rows as read-only and grey them out
+        for row in range(14, 16):
+            for col in range(16):
+                item = QTableWidgetItem('')
+                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                item.setBackground(Qt.gray)
+                self.tableWidget.setItem(row, col, item)
+            
         self.resize(800, 700)  # 窗口的宽度和高度
         
+        # Connect signals to slots
+        self.tableWidget.currentCellChanged.connect(self.cell_moved)
+        #self.tableWidget.cellClicked.connect(self.cell_clicked)   
         
+
+    def cell_clicked(self, row, col):
+        print(f'Clicked cell at row {row + 1}, column {col + 1}')
+
+    def cell_moved(self, currentRow, currentCol, previousRow, previousCol):
+        global SelectedCol
+        global SelectedRow
+        if currentRow is not None and currentCol is not None:
+            SelectedCol = currentCol
+            SelectedRow = currentRow
+            print(f'Moved to cell at row {SelectedRow + 1}, column {SelectedCol + 1}')
+            
     def printlinefilefunc(self):
         callerframerecord = inspect.stack()[1]
         frame = callerframerecord[0]
@@ -816,6 +858,7 @@ class Main(QWidget, ui.Ui_MainWindow):
             else:
                 print("event = ",event.text()) 
     '''                        
+    
            
 class Sub(QWidget,config.Ui_Configure):
     print("class Sub")    
@@ -949,8 +992,7 @@ class Sub(QWidget,config.Ui_Configure):
             self.comport.setCurrentIndex(port_index)
         except:
             print("comport is not in list")
-            
-
+           
 
 if __name__ == '__main__':
     global port_open
