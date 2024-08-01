@@ -50,6 +50,9 @@ class Main(QWidget, ui.Ui_MainWindow):
         #self.command.returnPressed.connect(self.command_function) #Press Enter callback 
         self.Debug.clicked.connect(self.Debug_click)
         #self.MBCMD.returnPressed.connect(self.MBCMD_function) #Press Enter callback 
+        self.RegReadOne.clicked.connect(self.RegReadOne_click)
+        self.RegReadAll.clicked.connect(self.RegReadAll_click)
+        self.RegWriteAll.clicked.connect(self.RegWriteAll_click)
         
         self.tabWidget.currentChanged.connect(self.on_tab_changed)
         
@@ -233,6 +236,15 @@ class Main(QWidget, ui.Ui_MainWindow):
             self.Debug.setStyleSheet("background-color: rgb(200, 200, 200);")  
         input_s = (input_s + '\n').encode('utf-8')       
         ser.write(input_s) 
+
+    def RegReadOne_click(self):
+        print("RegReadOne_click")
+
+    def RegReadAll_click(self):
+        print("RegReadAll_click")
+        
+    def RegWriteAll_click(self):
+        print("RegWriteAll_click")        
             
     def com_open(self):
         #ser.baudrate = 115200
@@ -533,7 +545,7 @@ class Main(QWidget, ui.Ui_MainWindow):
             print('key press in command:', (event.key(), event.text()))
             print('print_index:', self.print_index)
             
-            if event.key()==16777220: # Enter key
+            if (event.key()==16777220) | (event.key()==16777221): # Enter key
                 self.command_function()
             elif event.key()==16777235:  # up
                 if (self.print_index>0):

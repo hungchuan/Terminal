@@ -244,7 +244,7 @@
         <string>Function</string>
        </property>
       </widget>
-      <widget class="QPushButton" name="Read_Reg">
+      <widget class="QPushButton" name="RegReadOne">
        <property name="geometry">
         <rect>
          <x>450</x>
@@ -257,7 +257,7 @@
         <string>Read</string>
        </property>
       </widget>
-      <widget class="QPushButton" name="ReadAll">
+      <widget class="QPushButton" name="RegReadAll">
        <property name="geometry">
         <rect>
          <x>530</x>
@@ -270,7 +270,7 @@
         <string>Read All</string>
        </property>
       </widget>
-      <widget class="QPushButton" name="WriteAll">
+      <widget class="QPushButton" name="RegWriteAll">
        <property name="geometry">
         <rect>
          <x>610</x>
