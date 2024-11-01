@@ -32,7 +32,9 @@ class Main(QWidget, ui.Ui_MainWindow):
         global modbus_mode
         global cmd_format
         global Maxlines
-
+        
+        self.Progfile_path = None
+        self.n=0
         
         print("Main__init__")   
         super().__init__()
@@ -47,6 +49,12 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.Clear.clicked.connect(self.clear_click)
         self.Timestamp.clicked.connect(self.Timestamp_click)
         self.log.clicked.connect(self.openflie)
+        self.ProgOpen.clicked.connect(self.ProgOpenFlie)
+        self.ProgUpgrade.clicked.connect(self.ProgStart)
+        
+        #self.progress_bar = QtWidgets.QProgressBar()
+        #self.progressBar.setProperty("value", 25)
+        
         #self.command.returnPressed.connect(self.command_function) #Press Enter callback 
         self.Debug.clicked.connect(self.Debug_click)
         #self.MBCMD.returnPressed.connect(self.MBCMD_function) #Press Enter callback 
@@ -103,7 +111,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.OutputText.setReadOnly(False)
         
         self.OutputText.setStyleSheet("background-color: rgb(0, 0, 0);""color: rgb(255, 255, 255);")  
-        self.MBOutputText.setStyleSheet("background-color: rgb(0, 0, 0);""color: rgb(255, 255, 255);")  
+        self.ProgOutputText.setStyleSheet("background-color: rgb(0, 0, 0);""color: rgb(255, 255, 255);")  
         
         self.printlinefilefunc()
         
@@ -185,6 +193,9 @@ class Main(QWidget, ui.Ui_MainWindow):
         # Connect signals to slots
         self.tableWidget.currentCellChanged.connect(self.cell_moved)
         #self.tableWidget.cellClicked.connect(self.cell_clicked)   
+        self.ProgUpgrade.setEnabled(False)
+        self.ProgCancel.setEnabled(False)
+        
         
 
     def cell_clicked(self, row, col):
@@ -239,12 +250,21 @@ class Main(QWidget, ui.Ui_MainWindow):
 
     def RegReadOne_click(self):
         print("RegReadOne_click")
-
+        if port_open == False:
+            return
+            
     def RegReadAll_click(self):
         print("RegReadAll_click")
+        if port_open == False:
+            return
+        input_s = "a 3a00 100"    
+        input_s = (input_s + '\n').encode('utf-8')       
+        ser.write(input_s)
         
     def RegWriteAll_click(self):
         print("RegWriteAll_click")        
+        if port_open == False:
+            return
             
     def com_open(self):
         #ser.baudrate = 115200
@@ -492,6 +512,28 @@ class Main(QWidget, ui.Ui_MainWindow):
         else:
             pass
 
+    def ProgOpenFlie(self):
+        # Open file dialog to select BIN file
+        options = QFileDialog.Options()
+        options |= QFileDialog.ReadOnly
+        Progfile_path, _ = QFileDialog.getOpenFileName(self, "Select Firmware File", "", "BIN Files (*.bin)", options=options)
+
+        if Progfile_path:
+            self.Progfile_path = Progfile_path
+            self.ProgFileName.setText(f"{Progfile_path}")
+            self.ProgUpgrade.setEnabled(True)
+        else:
+            self.ProgFileName.setText("")
+            self.ProgUpgrade.setEnabled(False)
+            
+    def ProgStart(self):
+        print("Upgrade_click")
+        if port_open == False:
+            return        
+        self.n = self.n + 10
+        self.progressBar.setValue(self.n)# 增加進度
+
+            
     def openflie(self):
         global fileName
         new_fileName, save = QFileDialog.getSaveFileName(self,
@@ -681,12 +723,12 @@ class Main(QWidget, ui.Ui_MainWindow):
         crc_bytes = struct.pack('<H', crc)
         
         print("write:", request_data + crc_bytes)
-        #self.MBOutputText.insertPlainText(request_data + crc_bytes)  
+        #self.ProgOutputText.insertPlainText(request_data + crc_bytes)  
         
         # 將字節串轉換為十六進制字符串
         request_hex = binascii.hexlify(request_data + crc_bytes).decode('utf-8')
 
-        # 印出要傳送的資料到 MBOutputText
+        # 印出要傳送的資料到 ProgOutputText
         request_str = " ".join(request_hex[i:i+2] for i in range(0, len(request_hex), 2))
         self.OutputText.append(request_str)        
 
@@ -727,13 +769,13 @@ class Main(QWidget, ui.Ui_MainWindow):
             return 
         
         # 获取到text光标
-        MBtextCursor = self.MBOutputText.textCursor()   
+        MBtextCursor = self.ProgOutputText.textCursor()   
                      
         # 滚动到底部
         MBtextCursor.movePosition(MBtextCursor.End)
                     
         # 设置光标到text中去
-        self.MBOutputText.setTextCursor(MBtextCursor)
+        self.ProgOutputText.setTextCursor(MBtextCursor)
         
         # 获取用户输入的十六进制数据
         input_text = self.MBCMD.text()
