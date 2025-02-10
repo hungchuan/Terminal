@@ -37,7 +37,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.Progfile_path = None
         self.n=0
         self.bin_data = None
-        self.target_start_addr = 0x84000  # 設定 MCU 的目標地址
+        self.target_start_addr = 0x84008  # 設定 MCU 的目標地址
         self.chunk_size = 256
         
         print("Main__init__")   
@@ -199,6 +199,9 @@ class Main(QWidget, ui.Ui_MainWindow):
         #self.tableWidget.cellClicked.connect(self.cell_clicked)   
         self.ProgUpgrade.setEnabled(False)
         self.ProgCancel.setEnabled(False)
+        self.tabWidget.setCurrentIndex(1)
+        print("currentIndex = ",self.tabWidget.currentIndex())
+        
         
         
 
@@ -367,8 +370,11 @@ class Main(QWidget, ui.Ui_MainWindow):
         wig.setWindowModality(Qt.ApplicationModal) # lock sub window
         wig.show()
         
-    def clear_click(self):    
-        self.OutputText.clear()             
+    def clear_click(self):
+        if (0==self.tabWidget.currentIndex()):        
+            self.OutputText.clear()
+        elif (1==self.tabWidget.currentIndex()):  
+            self.ProgOutputText.clear()
   
     def Timestamp_click(self):        
         ct = datetime.datetime.now()
@@ -528,11 +534,10 @@ class Main(QWidget, ui.Ui_MainWindow):
             self.Progfile_path = Progfile_path
             self.ProgFileName.setText(f"{Progfile_path}")
             self.ProgUpgrade.setEnabled(True)
-            
-            for i in range(10):
-                print(hex(self.bin_data[i]) + ' ', end='')                
-            print()
-            
+
+            checksum = sum(self.bin_data) & 0xFF  # 計算 Checksum
+            print("checksum =",hex(checksum))
+                        
         else:
             self.ProgFileName.setText("")
             self.ProgUpgrade.setEnabled(False)
@@ -550,8 +555,9 @@ class Main(QWidget, ui.Ui_MainWindow):
         if port_open == False:
             QMessageBox.warning(self, "COM error", "Please check COM port.")
             return        
-        
+                   
         command = ('$ Download mode. Must jump bootloader.\r').encode('utf-8')
+        self.ProgOutputText.append(f"$ Download mode. Must jump bootloader.")   
         ser.write(command)
         
         if not self.wait_for_response("BIOS", timeout=2):
@@ -559,16 +565,23 @@ class Main(QWidget, ui.Ui_MainWindow):
             return
             
         # 傳送準備命令
+        checksum = sum(self.bin_data) & 0xFF  # 計算 Checksum
         size = len(self.bin_data)
         command = f"pprog {self.target_start_addr:05X} {size:05X} {(self.target_start_addr + size) & 0xFFFFF:05X}\r"
-        command = command.encode()
+        self.ProgOutputText.append(command) 
+        command = command.encode()           
         print("command =",command)
+
+        
         ser.write(command)
 
-        if not self.wait_for_response("a", timeout=2):
+        if not self.wait_for_response("a", timeout=5):
             QMessageBox.warning(self, "Upload Failed", "MCU did not acknowledge start command.")
             return            
 
+        self.Connect.setEnabled(False)  #Disable connect button
+        self.Configure.setEnabled(False)  #Disable Configure button
+        
         
         # 傳送資料
         self.progressBar.setValue(0)
@@ -579,25 +592,13 @@ class Main(QWidget, ui.Ui_MainWindow):
             checksum = (sum(chunk) + checksum) & 0xFF  # 計算 Checksum
             
             chunk = chunk.ljust(256, b'\x00') #補滿到 256 bytes
-            
-            byte_count = len(chunk)
-            #print(f"The chunk contains {byte_count} bytes.")
-            #print("checksum = ",hex(checksum))
-            
-            print("bytes_sent = ",bytes_sent)
-            
-            #chunk = chunk.encode('utf-8')
-            #command = ('1234567890.\n').encode('utf-8')
-            #ser.write(command)            
 
             ser.write(chunk)
-            for i in range(10):
-                print(hex(chunk[i]) + ' ', end='')                
-            print()            
-            
-            if not self.wait_for_checksum(checksum, timeout=2):
-            #if not self.wait_for_response("a", timeout=2):
+                 
+            if not self.wait_for_checksum(checksum, timeout=5):
                 QMessageBox.warning(self, "Upload Failed", "Checksum mismatch.")
+                self.Connect.setEnabled(True)  #Enable connect button
+                self.Configure.setEnabled(True)  #Disable Configure button                   
                 return
             
             bytes_sent += len(chunk)
@@ -614,31 +615,31 @@ class Main(QWidget, ui.Ui_MainWindow):
         elapsed_time = start_time.msecsTo(end_time) / 1000  # 毫秒轉換為秒
         self.ProgOutputText.append(f"elapsed time: {elapsed_time:.2f} seconds")       
         
-        QMessageBox.information(self, "Upload Complete", "Firmware upload completed successfully.")            
+        QMessageBox.information(self, "Upload Complete", "Firmware upload completed successfully.")
+        self.Connect.setEnabled(True)  #Enable connect button
+        self.Configure.setEnabled(True)  #Disable Configure button        
             
 
-    def wait_for_response(self, expected_response, timeout=2):
+    def wait_for_response(self, expected_response, timeout=5):
         """等待指定回應字串，超時返回 False"""
         start_time = time.time()
         while time.time() - start_time < timeout:
             response = ser.read(1024).decode(errors='ignore')
-            print("expected_response = ",expected_response)
-            print("response = ",response)
+            print('response :', (expected_response, response))
             if expected_response in response:
                 return True
             time.sleep(0.1)
         return False
         
-    def wait_for_checksum(self, expected_checksum, timeout=2):
+    def wait_for_checksum(self, expected_checksum, timeout=5):
         """等待單一 byte 的 checksum 驗證，設置超時"""
-        print("expected_checksum = ",hex(expected_checksum))
         start_time = time.time()
 
         while time.time() - start_time < timeout:
             byte = ser.read(1)  # 每次讀取 1 byte
             if byte:
                 received_checksum = byte[0]  # 取得接收的 byte 值
-                print("received_checksum = ",hex(received_checksum))
+                print('checksum :', (hex(expected_checksum), hex(received_checksum)))
                 return received_checksum == expected_checksum
 
             time.sleep(0.01)  # 短暫延遲，避免過多 CPU 使用
