@@ -34,6 +34,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         global cmd_format
         global Maxlines
         global Program_start_addr
+        global TabWidgetIndex
         
         self.Progfile_path = None
         self.n=0
@@ -200,7 +201,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         #self.tableWidget.cellClicked.connect(self.cell_clicked)   
         self.ProgUpgrade.setEnabled(False)
         self.ProgCancel.setEnabled(False)
-        self.tabWidget.setCurrentIndex(1)
+        self.tabWidget.setCurrentIndex(int(TabWidgetIndex))
         print("currentIndex = ",self.tabWidget.currentIndex())
         
         
@@ -906,6 +907,8 @@ class Main(QWidget, ui.Ui_MainWindow):
         
     def on_tab_changed(self, index):
         print("Switched to tab:", index)
+        config_w['SystemSettings']['TabWidgetIndex'] = str(index)
+        config_w.write(open('config.ini',"w+"))          
         '''
         self.com_close()
         if (0==index):
@@ -1258,6 +1261,14 @@ if __name__ == '__main__':
         modbus_mode = "ascii"
         config_w['SystemSettings']['modbus'] = "ascii"
         config_w.write(open('config.ini',"w+"))  
+
+    try:
+        TabWidgetIndex = config['SystemSettings']['TabWidgetIndex'] 
+    except:
+        TabWidgetIndex = 0
+        config_w['SystemSettings']['TabWidgetIndex'] = 0
+        config_w.write(open('config.ini',"w+"))  
+
 
     try:
         Program_start_addr = config['ProgramSettings']['Program_start_addr'] 
