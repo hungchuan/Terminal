@@ -33,11 +33,12 @@ class Main(QWidget, ui.Ui_MainWindow):
         global modbus_mode
         global cmd_format
         global Maxlines
+        global Program_start_addr
         
         self.Progfile_path = None
         self.n=0
         self.bin_data = None
-        self.target_start_addr = 0x84008  # 設定 MCU 的目標地址
+        self.target_start_addr = Program_start_addr #0x84008  # 設定 MCU 的目標地址
         self.chunk_size = 256
         
         print("Main__init__")   
@@ -1207,9 +1208,11 @@ if __name__ == '__main__':
     ser = serial.Serial()
      
     config = configparser.ConfigParser()       
-    config_w = configparser.ConfigParser()    
-    config_w['SystemSettings'] = {}        
+    config_w = configparser.ConfigParser() # for config.ini write
+    #config_w['SystemSettings'] = {}       
+    #config_w['ProgramSettings'] = {}         
     config.read('config.ini')
+    config_w = config
     
     try:    
         ser.port = config['SystemSettings']['comport'] 
@@ -1256,6 +1259,13 @@ if __name__ == '__main__':
         config_w['SystemSettings']['modbus'] = "ascii"
         config_w.write(open('config.ini',"w+"))  
 
+    try:
+        Program_start_addr = config['ProgramSettings']['Program_start_addr'] 
+    except:
+        Program_start_addr = "0x84008"
+        config_w['ProgramSettings']['Program_start_addr'] = "0x84008"
+        config_w.write(open('config.ini',"w+"))  
+
     if (modbus_mode == "ascii"):
         ser.timeout = 0.01
     else:
@@ -1267,6 +1277,7 @@ if __name__ == '__main__':
     print("ser.bytesize =",ser.bytesize )       
     print("ser.stopbits =",ser.stopbits ) 
     print("modbus_mode =",modbus_mode ) 
+    print("Program_start_addr =",Program_start_addr )      
     
     
     #ser = serial.Serial('COM10', 19200, parity=serial.PARITY_EVEN, bytesize=8, stopbits=1, timeout=1)
