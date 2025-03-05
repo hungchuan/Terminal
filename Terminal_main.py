@@ -20,6 +20,8 @@ from PyQt5 import QtCore
 import pandas as pd
 import time
 from PyQt5.QtCore import QDateTime
+import argparse
+
 
 Maxlines = 10
 MaxlinesInputed = 0
@@ -36,6 +38,16 @@ class Main(QWidget, ui.Ui_MainWindow):
         global TabWidgetIndex
         global response_data_hex
 
+        parser = argparse.ArgumentParser(description="Example script with debug option")
+        parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+        args = parser.parse_args()
+        
+        # setup the debug mode 
+        self.debug_mode = args.debug  
+        if self.debug_mode:
+            print("=====  debug on =====")
+        else:            
+            print("=====  debug off =====")
         
         self.Progfile_path = None
         self.n=0
@@ -644,10 +656,14 @@ class Main(QWidget, ui.Ui_MainWindow):
         if port_open == False:
             QMessageBox.warning(self, "COM error", "Please check COM port.")
             return        
-                   
+
+        if self.debug_mode:
+            self.writeflie(" ============== ProgStart_RTU ================ ")            
+            self.writeflie("\n") 
+        
         # Step 1: Send Firmware update start (0x81)
         firmware_update_cmd = b'\x51\x6E\x81\x10WIC-001LF100LA' + b'\x00' * (16 - len("WIC-001LF100LA"))
-        response = self.send_modbus_request(ser, firmware_update_cmd)
+        response = self.send_modbus_request(ser, firmware_update_cmd)              
         
         # 2. read the response
         response = self.read_modbus_response(expected_length = 6,timeout=2)
@@ -724,6 +740,10 @@ class Main(QWidget, ui.Ui_MainWindow):
         QMessageBox.information(self, "Upload Complete", "Firmware upload completed successfully.")
         self.Connect.setEnabled(True)  #Enable connect button
         self.Configure.setEnabled(True)  #Disable Configure button   
+        
+        if self.debug_mode:
+            self.writeflie(" ============== ProgStart_RTU End ================ ")            
+            self.writeflie("\n") 
 
     def ProgStart(self):
         print ("modbus_mode =", modbus_mode)
@@ -971,12 +991,15 @@ class Main(QWidget, ui.Ui_MainWindow):
         print("write:", request_data + crc_bytes)
         #self.ProgOutputText.insertPlainText(request_data + crc_bytes)  
         
-        # 將字節串轉換為十六進制字符串
-        request_hex = binascii.hexlify(request_data + crc_bytes).decode('utf-8')
-
-        # 印出要傳送的資料到 ProgOutputText
-        request_str = " ".join(request_hex[i:i+2] for i in range(0, len(request_hex), 2))
-        self.OutputText.append(request_str)        
+        if self.debug_mode:
+            # 將字節串轉換為十六進制字符串
+            request_hex = binascii.hexlify(request_data + crc_bytes).decode('utf-8')
+            # 印出要傳送的資料到 ProgOutputText 
+            request_str = " ".join(request_hex[i:i+2] for i in range(0, len(request_hex), 2))
+            self.ProgOutputText.append(request_str)
+            # Print to file for debug        
+            self.writeflie(request_str)
+            self.writeflie("\n")         
 
         self.timer.start(50)
         # 发送请求数据
