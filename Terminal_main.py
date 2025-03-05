@@ -26,7 +26,6 @@ MaxlinesInputed = 0
 SelectedCol = 100
 SelectedRow = 100
 
-
 class Main(QWidget, ui.Ui_MainWindow):
     print("class Main")    
     def __init__(self):
@@ -35,12 +34,18 @@ class Main(QWidget, ui.Ui_MainWindow):
         global Maxlines
         global Program_start_addr
         global TabWidgetIndex
+        global response_data_hex
+
         
         self.Progfile_path = None
         self.n=0
         self.bin_data = None
         self.target_start_addr = Program_start_addr #0x84008  # 設定 MCU 的目標地址
-        self.chunk_size = 256
+        if (modbus_mode == "ascii"):
+            self.chunk_size = 256
+        else:
+            self.chunk_size = 128        
+        
         
         print("Main__init__")   
         super().__init__()
@@ -431,6 +436,7 @@ class Main(QWidget, ui.Ui_MainWindow):
     def data_receive(self):
         global modbus_mode
         global first_line_character
+        global response_data_hex
         
         try:
             num = ser.inWaiting()
@@ -511,6 +517,7 @@ class Main(QWidget, ui.Ui_MainWindow):
             #self.OutputText.insertPlainText(data2.decode('iso-8859-1'))
             if (modbus_mode == "rtu"):
                 self.OutputText.append(response_data_hex)
+                print('data_receive:response_data_hex :', response_data_hex) 
             else:
                 self.OutputText.insertPlainText(data2)     
                         
@@ -543,9 +550,9 @@ class Main(QWidget, ui.Ui_MainWindow):
         else:
             self.ProgFileName.setText("")
             self.ProgUpgrade.setEnabled(False)
-            
-    def ProgStart(self):
-        print("Upgrade_click")        
+                  
+    def ProgStart_ascii(self):
+        print("ProgStart_ascii")        
         # 記錄開始時間
         start_time = QTime.currentTime()  
              
@@ -621,7 +628,131 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.Connect.setEnabled(True)  #Enable connect button
         self.Configure.setEnabled(True)  #Disable Configure button        
             
+       
+    def ProgStart_RTU(self):
+        print("ProgStart_RTU ")
+        global response_data_hex
+        response_data_hex = None   
+        # 記錄開始時間
+        start_time = QTime.currentTime()  
+             
+        """開始燒錄流程"""
+        if not self.bin_data:
+            QMessageBox.warning(self, "No File", "Please load a BIN file first.")
+            return
+            
+        if port_open == False:
+            QMessageBox.warning(self, "COM error", "Please check COM port.")
+            return        
+                   
+        # Step 1: Send Firmware update start (0x81)
+        firmware_update_cmd = b'\x51\x6E\x81\x10WIC-001LF100LA' + b'\x00' * (16 - len("WIC-001LF100LA"))
+        response = self.send_modbus_request(ser, firmware_update_cmd)
+        
+        # 2. read the response
+        response = self.read_modbus_response(expected_length = 6,timeout=2)
+               
+        # Step 3: Check response       
+        if not response or response[3] == 1:
+            QMessageBox.warning(self, "Upload Failed", "0x81:Command not acceptable.")
+            return
+        time.sleep(3)
 
+        # Step 4: Send Update Status (0x84)
+        update_status_cmd = b'\x51\x6E\x84'
+        response = self.send_modbus_request(ser, update_status_cmd)
+        
+        # 5. read the response
+        response = self.read_modbus_response(expected_length = 7,timeout=2) 
+        # Step 6: Check response      
+        if not response or (response[4] & 0x40) == 0:
+            QMessageBox.warning(self, "Upload Failed", "0x84:Update not allowed.")
+            return
+ 
+        # 傳送準備命令
+        checksum = sum(self.bin_data) & 0xFF  # 計算 Checksum
+        size = len(self.bin_data)
+ 
+        self.Connect.setEnabled(False)  #Disable connect button
+        self.Configure.setEnabled(False)  #Disable Configure button
+        
+        """==================================================================="""
+        
+        # 傳送資料
+        self.progressBar.setValue(0)
+        bytes_sent = 0
+        checksum = 0
+        block_index = 0
+        last_block = 0
+        
+        while bytes_sent < size:
+            chunk = self.bin_data[bytes_sent:bytes_sent + self.chunk_size]
+            checksum = (sum(chunk) + checksum) & 0xFF  # 計算 Checksum
+            
+            chunk = chunk.ljust(128, b'\x00') #補滿到 128 bytes
+            
+            if ((bytes_sent + self.chunk_size) > size):
+                last_block = 1
+            
+            request = bytes([0x51, 0x6E, 0x82, 0x6E, 0x00, 0x00, last_block, block_index & 0xFF, (block_index >> 8) & 0xFF]) + chunk
+            response = self.send_modbus_request(ser, request)         
+            #read the response
+            response = self.read_modbus_response(expected_length = 6,timeout=2)
+                   
+            #Check response       
+            if not response or response[3] == 1:
+                QMessageBox.warning(self, "Upload Failed", "0x82:Command not acceptable.")
+                self.Connect.setEnabled(True)  #Enable connect button
+                self.Configure.setEnabled(True)  #Disable Configure button  
+                return
+            
+            bytes_sent += len(chunk)
+            block_index += 1
+            #bytes_sent = size
+            self.progressBar.setValue(int((bytes_sent / size) * 100))
+
+            QApplication.processEvents()  # 更新 UI
+        
+        # 記錄結束時間並顯示
+        end_time = QTime.currentTime()
+        self.ProgOutputText.append(f"start time: {start_time.toString('HH:mm:ss')}")          
+        self.ProgOutputText.append(f"end time: {end_time.toString('HH:mm:ss')}")
+        # 計算執行時間
+        elapsed_time = start_time.msecsTo(end_time) / 1000  # 毫秒轉換為秒
+        self.ProgOutputText.append(f"elapsed time: {elapsed_time:.2f} seconds")       
+        
+        QMessageBox.information(self, "Upload Complete", "Firmware upload completed successfully.")
+        self.Connect.setEnabled(True)  #Enable connect button
+        self.Configure.setEnabled(True)  #Disable Configure button   
+
+    def ProgStart(self):
+        print ("modbus_mode =", modbus_mode)
+        if (modbus_mode == "ascii"):
+            self.ProgStart_ascii();
+        else:
+            self.ProgStart_RTU();
+
+    def read_modbus_response(self, expected_length, timeout=5):
+        """等待指定回應字串，超時返回 False"""
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            num = ser.inWaiting()
+            print ("num =", num)
+            if (num>=expected_length):
+                response = ser.read(num)
+                print ("response[0] =", response[0])
+                print ("response[1] =", response[1])
+                print ("response[2] =", response[2])
+                print ("response[3] =", response[3])
+                print ("response[4] =", response[4])
+                print ("response[5] =", response[5])
+                #print ("response[6] =", response[6])
+
+                return response
+            time.sleep(0.1)
+        return None
+  
     def wait_for_response(self, expected_response, timeout=5):
         """等待指定回應字串，超時返回 False"""
         start_time = time.time()
@@ -828,8 +959,8 @@ class Main(QWidget, ui.Ui_MainWindow):
                     crc ^= 0xA001
                 else:
                     crc >>= 1
-        return crc        
-
+        return crc             
+        
     def send_modbus_request(self,serial_port, request_data):
 
         # 计算CRC
@@ -1174,6 +1305,7 @@ if __name__ == '__main__':
     global modbus_mode
     global cmd_format
     global Debug_mode
+    global response_data_hex
     
     Debug_mode = "off"
     CURRENT_PACKAGE_DIRECTORY = os.path.abspath('.')    
