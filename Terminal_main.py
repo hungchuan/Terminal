@@ -357,14 +357,39 @@ class Main(QWidget, ui.Ui_MainWindow):
             print ("input_s =", input_s)        
             ser.write(input_s)
         else:
-            # 获取用户输入的十六进制数据
             input_s = self.command.text()
+            # 如果 input_s 為空則直接 return
+            if not input_s:
+                self.command.clear()
+                return            
             hex_values = input_s.replace(' ', '').split()
-            bytes_data = bytes.fromhex(''.join(hex_values))
-            self.command.clear()
+            # 只保留有效的十六進制數字 (過濾掉無效輸入)
+            valid_hex_values = [h for h in hex_values if all(c in "0123456789ABCDEFabcdef" for c in h)]
+
+            if not valid_hex_values:
+                print("Error: No valid hexadecimal numbers found.")
+                self.OutputText.append("Error: No valid hexadecimal numbers found.")
+                self.command.clear()
+                return
+            else:
+                try:
+                    bytes_data = bytes.fromhex(''.join(valid_hex_values))
+                    self.command.clear()
+                    # Send Modbus
+                    self.send_modbus_request(ser, bytes_data)
+                    input_s = (input_s + '\n').encode('utf-8')
+                except ValueError as e:
+                    self.command.clear()
+                    print(f"Error converting to bytes: {e}")
+                    self.OutputText.append(f"Error converting to bytes: {e}")
+                    return
+
+            
+            #bytes_data = bytes.fromhex(''.join(hex_values))
+            #self.command.clear()
             # 发送Modbus请求
-            self.send_modbus_request(ser, bytes_data)
-            input_s = (input_s + '\n').encode('utf-8')    
+            #self.send_modbus_request(ser, bytes_data)
+            #input_s = (input_s + '\n').encode('utf-8')    
         
         input_s_new = input_s[:-1]
         #存储到lines数组中               
@@ -982,7 +1007,8 @@ class Main(QWidget, ui.Ui_MainWindow):
         return crc             
         
     def send_modbus_request(self,serial_port, request_data):
-
+        global TabWidgetIndex
+        print("TabWidgetIndex:", TabWidgetIndex)
         # 计算CRC
         crc = self.calculate_crc(request_data)
         print("RTU CRC:", hex(crc))
@@ -994,9 +1020,13 @@ class Main(QWidget, ui.Ui_MainWindow):
         if self.debug_mode:
             # 將字節串轉換為十六進制字符串
             request_hex = binascii.hexlify(request_data + crc_bytes).decode('utf-8')
-            # 印出要傳送的資料到 ProgOutputText 
+            # 印出要傳送的資料到 ProgOutputText 或是 OutputText
             request_str = " ".join(request_hex[i:i+2] for i in range(0, len(request_hex), 2))
-            self.ProgOutputText.append(request_str)
+            if (0==int(TabWidgetIndex)):
+                self.OutputText.append(request_str)
+            elif (1==int(TabWidgetIndex)):
+                self.ProgOutputText.append(request_str)
+                
             # Print to file for debug        
             self.writeflie(request_str)
             self.writeflie("\n")         
