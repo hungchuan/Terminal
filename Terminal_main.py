@@ -754,6 +754,10 @@ class Main(QWidget, ui.Ui_MainWindow):
 
             QApplication.processEvents()  # 更新 UI
         
+        # Switch to new firmware 
+        firmware_update_cmd = b'\x51\x6E\x83\x08\x07'
+        response = self.send_modbus_request(ser, firmware_update_cmd)          
+        
         # 記錄結束時間並顯示
         end_time = QTime.currentTime()
         self.ProgOutputText.append(f"start time: {start_time.toString('HH:mm:ss')}")          
