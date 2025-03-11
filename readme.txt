@@ -8,6 +8,7 @@ C:\Users\Ryan\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2
 pyinstaller -F -w --onefile --icon=D:\Ryan\Project\Git\Terminal\Icon.ico Terminal_main.py
 pyinstaller -D -w --icon=D:\Work\Tools\MODBUS\Terminal\Icon.ico Terminal_main.py
 pyinstaller -F -w --icon=D:\Work\Tools\MODBUS\Terminal\Icon.ico Terminal_main.py
+pyinstaller -w --icon=D:\Work\Tools\MODBUS\Terminal\Icon.ico Terminal_main.py
 
 conda create --name py37 python=3.7
 

@@ -1094,9 +1094,11 @@ class Main(QWidget, ui.Ui_MainWindow):
         #self.receive_modbus_response(ser)        
         
     def on_tab_changed(self, index):
+        global TabWidgetIndex
         print("Switched to tab:", index)
         config_w['SystemSettings']['TabWidgetIndex'] = str(index)
-        config_w.write(open('config.ini',"w+"))          
+        config_w.write(open('config.ini',"w+"))
+        TabWidgetIndex = index
         '''
         self.com_close()
         if (0==index):
