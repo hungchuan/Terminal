@@ -735,7 +735,7 @@ class Main(QWidget, ui.Ui_MainWindow):
             if ((bytes_sent + self.chunk_size) > size):
                 last_block = 1
             
-            request = bytes([0x51, 0x6E, 0x82, 0x6E, 0x00, 0x00, last_block, block_index & 0xFF, (block_index >> 8) & 0xFF]) + chunk
+            request = bytes([0x51, 0x6E, 0x82, 0x85, 0x00, 0x00, last_block, block_index & 0xFF, (block_index >> 8) & 0xFF]) + chunk
             response = self.send_modbus_request(ser, request)         
             #read the response
             response = self.read_modbus_response(expected_length = 6,timeout=2)
@@ -797,6 +797,16 @@ class Main(QWidget, ui.Ui_MainWindow):
                 print ("response[4] =", response[4])
                 print ("response[5] =", response[5])
                 #print ("response[6] =", response[6])
+                
+                if self.debug_mode:
+                    response_data_hex = ' '.join(['{:02X}'.format(byte) for byte in response])
+                    self.ProgOutputText.append(response_data_hex)
+
+                    
+                # Print to file for debug        
+                self.writeflie(response_data_hex)
+                self.writeflie("\n")    
+
 
                 return response
             time.sleep(0.1)
