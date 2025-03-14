@@ -21,6 +21,7 @@ import pandas as pd
 import time
 from PyQt5.QtCore import QDateTime
 import argparse
+from intelhex import IntelHex
 
 
 Maxlines = 10
@@ -221,6 +222,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.tabWidget.setCurrentIndex(int(TabWidgetIndex))
         print("currentIndex = ",self.tabWidget.currentIndex())
         
+        self.ProgFileName.setText(Program_last_file)
         
         
 
@@ -569,17 +571,32 @@ class Main(QWidget, ui.Ui_MainWindow):
             pass
 
     def ProgOpenFlie(self):
+        global Program_last_file
         # Open file dialog to select BIN file
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
-        Progfile_path, _ = QFileDialog.getOpenFileName(self, "Select Firmware File", "", "BIN Files (*.bin)", options=options)
+        initial_dir = os.path.dirname(Program_last_file) if Program_last_file else ""
+        Progfile_path, _ = QFileDialog.getOpenFileName(self, "Select Firmware File", initial_dir, "Binary/Hex Files (*.bin *.hex)", options=options)
 
         if Progfile_path:
-            with open(Progfile_path, "rb") as file:
-                self.bin_data = file.read()            
+            Program_last_file = Progfile_path
+            if  Program_last_file.endswith(".hex"):
+                print("It's HEX file")
+                ih = IntelHex(Program_last_file)
+                self.bin_data = bytes(ih.tobinarray())
+                print("bin_data =",self.bin_data)
+            else:
+                with open(Progfile_path, "rb") as file:
+                    self.bin_data = file.read()
+                    print("bin_data =",self.bin_data) 
+            
+            #with open(Progfile_path, "rb") as file:
+            #    self.bin_data = file.read()            
             self.Progfile_path = Progfile_path
             self.ProgFileName.setText(f"{Progfile_path}")
             self.ProgUpgrade.setEnabled(True)
+            config_w['ProgramSettings']['last_file'] = Program_last_file
+            config_w.write(open('config.ini',"w+"))
 
             checksum = sum(self.bin_data) & 0xFF  # 計算 Checksum
             print("checksum =",hex(checksum))
@@ -1414,7 +1431,27 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()       
     config_w = configparser.ConfigParser() # for config.ini write
     #config_w['SystemSettings'] = {}       
-    #config_w['ProgramSettings'] = {}         
+    #config_w['ProgramSettings'] = {}     
+    
+    if not os.path.exists('config.ini'):
+        config["SystemSettings"] = {
+            "comport": "COM3",
+            "baudrate": "19200",
+            "parity": "E",
+            "databits": "8",
+            "stopbits": "1",
+            "modbus": "rtu",
+            "tabwidgetindex": "0"
+        }
+        config["ProgramSettings"] = {
+            "program_start_addr": "0x84008",
+            "last_file": ""
+        }
+        with open('config.ini', "w") as configfile:
+            config.write(configfile)
+            
+        #config_w.write(open('config.ini',"w+"))  
+    
     config.read('config.ini')
     config_w = config
     
@@ -1467,7 +1504,7 @@ if __name__ == '__main__':
         TabWidgetIndex = config['SystemSettings']['TabWidgetIndex'] 
     except:
         TabWidgetIndex = 0
-        config_w['SystemSettings']['TabWidgetIndex'] = 0
+        config_w['SystemSettings']['TabWidgetIndex'] = "0"
         config_w.write(open('config.ini',"w+"))  
 
 
@@ -1477,6 +1514,14 @@ if __name__ == '__main__':
         Program_start_addr = "0x84008"
         config_w['ProgramSettings']['Program_start_addr'] = "0x84008"
         config_w.write(open('config.ini',"w+"))  
+
+    try:
+        Program_last_file = config['ProgramSettings']['last_file'] 
+    except:
+        Program_last_file = ""
+        config_w['ProgramSettings']['last_file'] = ""
+        config_w.write(open('config.ini',"w+"))  
+        
 
     if (modbus_mode == "ascii"):
         ser.timeout = 0.01
