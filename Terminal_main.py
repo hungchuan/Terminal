@@ -21,8 +21,8 @@ import pandas as pd
 import time
 from PyQt5.QtCore import QDateTime
 import argparse
-from intelhex import IntelHex
-
+import binascii
+from collections import defaultdict
 
 Maxlines = 10
 MaxlinesInputed = 0
@@ -582,8 +582,7 @@ class Main(QWidget, ui.Ui_MainWindow):
             Program_last_file = Progfile_path
             if  Program_last_file.endswith(".hex"):
                 print("It's HEX file")
-                ih = IntelHex(Program_last_file)
-                self.bin_data = bytes(ih.tobinarray())
+                self.bin_data = self.parse_hex_file(Program_last_file)
                 print("bin_data =",self.bin_data)
             else:
                 with open(Progfile_path, "rb") as file:
@@ -604,6 +603,51 @@ class Main(QWidget, ui.Ui_MainWindow):
         else:
             self.ProgFileName.setText("")
             self.ProgUpgrade.setEnabled(False)
+
+    def parse_hex_file(self, hex_file):
+        """ Parse Intel HEX file and convert to binary data (address * 2, 16-bit Little-Endian) """
+        memory = defaultdict(lambda: b'\xFF\xFF')  # Default fill with 0xFFFF
+        base_address = 0  # Extended address (Segment / Linear Address)
+
+        with open(hex_file, "r") as f:
+            for line in f:
+                if not line.startswith(":"):
+                    continue  # HEX record lines should start with `:`
+                
+                line = line.strip()
+                byte_count = int(line[1:3], 16)
+                address = int(line[3:7], 16) * 2 + base_address  # **Address multiplied by 2**
+                record_type = int(line[7:9], 16)
+                data = line[9:9 + byte_count * 2]
+                
+                if record_type == 0x00:  # Data record
+                    raw_data = binascii.unhexlify(data)
+
+                    # **Ensure 16-bit Little-Endian storage**
+                    for i in range(0, len(raw_data), 2):
+                        chunk = raw_data[i:i+2]
+                        if len(chunk) < 2:
+                            chunk += b'\xFF'  # Ensure 16-bit length
+                        memory[address + i] = chunk[::-1]  # Little-Endian reversal**
+
+                elif record_type == 0x02:  # Extended Segment Address Record
+                    base_address = (int(data, 16) << 4) * 2
+
+                elif record_type == 0x04:  # Extended Linear Address Record
+                    base_address = (int(data, 16) << 16) * 2
+
+                elif record_type == 0x01:  # End of File Record
+                    break  # End parsing
+        
+        min_address = min(memory.keys()) & 0xFFFFFFFE  # Align to even address
+        max_address = (max(memory.keys()) | 0x1) + 1  # Align to even range
+        bin_data = bytearray([0xFF] * (max_address - min_address))  # Default fill with 0xFFFF
+        
+        for addr in range(min_address, max_address, 2):
+            if addr in memory:
+                bin_data[addr - min_address: addr - min_address + 2] = memory[addr]
+        
+        return bytes(bin_data)
                   
     def ProgStart_ascii(self):
         print("ProgStart_ascii")        
