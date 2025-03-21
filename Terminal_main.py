@@ -53,6 +53,9 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.Progfile_path = None
         self.n=0
         self.bin_data = None
+        self.bin_data_Bank0 = None
+        self.bin_data_Bank1 = None
+        
         self.target_start_addr = Program_start_addr #0x84008  # 設定 MCU 的目標地址
         if (modbus_mode == "ascii"):
             self.chunk_size = 256
@@ -73,7 +76,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.Clear.clicked.connect(self.clear_click)
         self.Timestamp.clicked.connect(self.Timestamp_click)
         self.log.clicked.connect(self.openflie)
-        self.ProgOpen.clicked.connect(self.ProgOpenFlie)
+        self.ProgOpen.clicked.connect(self.ProgOpenFile)
         self.ProgUpgrade.clicked.connect(self.ProgStart)
         
         #self.progress_bar = QtWidgets.QProgressBar()
@@ -569,10 +572,11 @@ class Main(QWidget, ui.Ui_MainWindow):
             
         else:
             pass
-
-    def ProgOpenFlie(self):
+            
+            
+    def ProgOpenFile(self):
         global Program_last_file
-        # Open file dialog to select BIN file
+        # Open file dialog to select BIN or HEX file
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
         initial_dir = os.path.dirname(Program_last_file) if Program_last_file else ""
@@ -580,43 +584,94 @@ class Main(QWidget, ui.Ui_MainWindow):
 
         if Progfile_path:
             Program_last_file = Progfile_path
-            if  Program_last_file.endswith(".hex"):
-                print("It's HEX file")
-                self.bin_data = self.parse_hex_file(Program_last_file)
-                print("bin_data =",self.bin_data)
+            if Program_last_file.endswith(".hex"):
+                print("It's a HEX file")
+                
+                # Parse HEX file and store data in bin_data_bank0 and bin_data_bank1
+                self.bin_data_bank0, self.bin_data_bank1 = self.parse_hex_file(Program_last_file)
+                
+                # Calculate and print checksum
+                checksum = sum(self.bin_data_bank0) & 0xFF  
+                print("checksum0 =", hex(checksum))
+                checksum = sum(self.bin_data_bank1) & 0xFF  
+                print("checksum1 =", hex(checksum))
+
+                # **Check if bin_data_bank0 is empty**
+                if self.bin_data_bank0[:4] == b'\xFF\xFF\xFF\xFF':
+                    print("bin_data_bank0 is not available")
+                    self.bin_data = self.bin_data_bank1
+                else:
+                    self.bin_data = self.bin_data_bank0
+                '''
+                # Print debug message
+                # Get the first 64 bytes and last 64 bytes
+                first_64_bytes = self.bin_data_bank0[:64]
+                last_64_bytes = self.bin_data_bank0[-64:]
+                    
+                # Print first 64 bytes and last 64 bytes in hexadecimal format
+                print("bank0 First 64 bytes:", first_64_bytes.hex(" "))
+                print("bank0 Last 64 bytes:", last_64_bytes.hex(" "))
+
+                # Get the first 64 bytes and last 64 bytes
+                first_64_bytes = self.bin_data_bank1[:64]
+                last_64_bytes = self.bin_data_bank1[-64:]
+                    
+                # Print first 64 bytes and last 64 bytes in hexadecimal format
+                print("bank1 First 64 bytes:", first_64_bytes.hex(" "))
+                print("bank1 Last 64 bytes:", last_64_bytes.hex(" "))
+                '''
+
             else:
+                # Read binary file
                 with open(Progfile_path, "rb") as file:
                     self.bin_data = file.read()
-                    print("bin_data =",self.bin_data) 
+                    '''
+                    # Print debug message
+                    # Get the first 64 bytes and last 64 bytes
+                    first_64_bytes = self.bin_data[:64]
+                    last_64_bytes = self.bin_data[-64:]
+                    
+                    # Print first 64 bytes and last 64 bytes in hexadecimal format
+                    print("First 64 bytes:", first_64_bytes.hex(" "))
+                    print("Last 64 bytes:", last_64_bytes.hex(" "))
+                    '''
+
+                    # Calculate and print checksum
+                    checksum = sum(self.bin_data) & 0xFF  
+                    print("checksum =", hex(checksum))                    
             
-            #with open(Progfile_path, "rb") as file:
-            #    self.bin_data = file.read()            
             self.Progfile_path = Progfile_path
             self.ProgFileName.setText(f"{Progfile_path}")
             self.ProgUpgrade.setEnabled(True)
             config_w['ProgramSettings']['last_file'] = Program_last_file
-            config_w.write(open('config.ini',"w+"))
+            config_w.write(open('config.ini', "w+"))
 
-            checksum = sum(self.bin_data) & 0xFF  # 計算 Checksum
-            print("checksum =",hex(checksum))
-                        
         else:
+            # If no file is selected, disable the upgrade button
             self.ProgFileName.setText("")
             self.ProgUpgrade.setEnabled(False)
-
+            
+            
     def parse_hex_file(self, hex_file):
-        """ Parse Intel HEX file and convert to binary data (address * 2, 16-bit Little-Endian) """
+        """ Parse Intel HEX file and convert it to binary data (address * 2, 16-bit Little-Endian) """
+        
+        # Memory mapping
         memory = defaultdict(lambda: b'\xFF\xFF')  # Default fill with 0xFFFF
         base_address = 0  # Extended address (Segment / Linear Address)
+        
+        # Target address range (multiplied by 2)
+        BANK0_START = 0x086808 * 2
+        BANK1_START = 0x0A6808 * 2
 
+        # Read HEX file
         with open(hex_file, "r") as f:
             for line in f:
                 if not line.startswith(":"):
-                    continue  # HEX record lines should start with `:`
+                    continue  # HEX records should start with `:`
                 
                 line = line.strip()
                 byte_count = int(line[1:3], 16)
-                address = int(line[3:7], 16) * 2 + base_address  # **Address multiplied by 2**
+                address = int(line[3:7], 16) * 2 + base_address  # Multiply address by 2
                 record_type = int(line[7:9], 16)
                 data = line[9:9 + byte_count * 2]
                 
@@ -628,7 +683,7 @@ class Main(QWidget, ui.Ui_MainWindow):
                         chunk = raw_data[i:i+2]
                         if len(chunk) < 2:
                             chunk += b'\xFF'  # Ensure 16-bit length
-                        memory[address + i] = chunk[::-1]  # Little-Endian reversal**
+                        memory[address + i] = chunk[::-1]  # Little-Endian byte order
 
                 elif record_type == 0x02:  # Extended Segment Address Record
                     base_address = (int(data, 16) << 4) * 2
@@ -637,17 +692,47 @@ class Main(QWidget, ui.Ui_MainWindow):
                     base_address = (int(data, 16) << 16) * 2
 
                 elif record_type == 0x01:  # End of File Record
-                    break  # End parsing
+                    break  # Stop parsing
         
-        min_address = min(memory.keys()) & 0xFFFFFFFE  # Align to even address
-        max_address = (max(memory.keys()) | 0x1) + 1  # Align to even range
-        bin_data = bytearray([0xFF] * (max_address - min_address))  # Default fill with 0xFFFF
-        
-        for addr in range(min_address, max_address, 2):
+        # Get the EndAddress
+        if memory:
+            EndAddress = max(memory.keys())  # Get the last byte's address
+        else:
+            EndAddress = BANK0_START  # If HEX file is empty, set to BANK0_START
+
+        # Calculate File_Length
+        if EndAddress > BANK1_START:
+            File_Length = EndAddress - BANK1_START + 2
+        else:
+            File_Length = EndAddress - BANK0_START + 2
+
+        # Set correct bank range
+        BANK0_END = BANK0_START + File_Length
+        BANK1_END = BANK1_START + File_Length
+
+        # Initialize bin_data_bank0 & bin_data_bank1
+        bin_data_bank0 = bytearray([0xFF] * (BANK0_END - BANK0_START))
+        bin_data_bank1 = bytearray([0xFF] * (BANK1_END - BANK1_START))
+
+        # Fill in data
+        for addr in range(BANK0_START, BANK0_END, 2):
             if addr in memory:
-                bin_data[addr - min_address: addr - min_address + 2] = memory[addr]
+                bin_data_bank0[addr - BANK0_START: addr - BANK0_START + 2] = memory[addr]
+
+        for addr in range(BANK1_START, BANK1_END, 2):
+            if addr in memory:
+                bin_data_bank1[addr - BANK1_START: addr - BANK1_START + 2] = memory[addr]
+
+        # Save bin files for verify 
+        '''
+        with open("bin_data_bank0.bin", "wb") as f:
+            f.write(bin_data_bank0)
+
+        with open("bin_data_bank1.bin", "wb") as f:
+            f.write(bin_data_bank1)
+        '''
         
-        return bytes(bin_data)
+        return bytes(bin_data_bank0), bytes(bin_data_bank1)
                   
     def ProgStart_ascii(self):
         print("ProgStart_ascii")        
@@ -712,14 +797,14 @@ class Main(QWidget, ui.Ui_MainWindow):
             #bytes_sent = size
             self.progressBar.setValue(int((bytes_sent / size) * 100))
 
-            QApplication.processEvents()  # 更新 UI
+            QApplication.processEvents()  # update UI
         
         # 記錄結束時間並顯示
         end_time = QTime.currentTime()
         self.ProgOutputText.append(f"start time: {start_time.toString('HH:mm:ss')}")          
         self.ProgOutputText.append(f"end time: {end_time.toString('HH:mm:ss')}")
         # 計算執行時間
-        elapsed_time = start_time.msecsTo(end_time) / 1000  # 毫秒轉換為秒
+        elapsed_time = start_time.msecsTo(end_time) / 1000  # Millisecond to Second
         self.ProgOutputText.append(f"elapsed time: {elapsed_time:.2f} seconds")       
         
         QMessageBox.information(self, "Upload Complete", "Firmware upload completed successfully.")
@@ -770,6 +855,18 @@ class Main(QWidget, ui.Ui_MainWindow):
         if not response or (response[4] & 0x40) == 0:
             QMessageBox.warning(self, "Upload Failed", "0x84:Update not allowed.")
             return
+  
+        # Check executing bank
+        if not response or (response[4] & 0x80) == 0:
+            self.writeflie("\n") 
+            self.writeflie(" ============== Executing at Bank0, send bank1 ================ ")            
+            self.writeflie("\n")             
+            self.bin_data = self.bin_data_bank1 # Executing at Bank0, send bank1 
+        else:
+            self.writeflie("\n") 
+            self.writeflie(" ============== Executing at Bank1, send bank0 ================ ")            
+            self.writeflie("\n")              
+            self.bin_data = self.bin_data_bank0 # Executing at Bank1, send bank0 
  
         # 傳送準備命令
         checksum = sum(self.bin_data) & 0xFF  # 計算 Checksum
