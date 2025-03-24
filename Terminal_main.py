@@ -959,12 +959,9 @@ class Main(QWidget, ui.Ui_MainWindow):
                 if self.debug_mode:
                     response_data_hex = ' '.join(['{:02X}'.format(byte) for byte in response])
                     self.ProgOutputText.append(response_data_hex)
-
-                    
-                # Print to file for debug        
-                self.writeflie(response_data_hex)
-                self.writeflie("\n")    
-
+                    # Print to file for debug        
+                    self.writeflie(response_data_hex)
+                    self.writeflie("\n")
 
                 return response
             time.sleep(0.1)
