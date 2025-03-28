@@ -23,6 +23,7 @@ from PyQt5.QtCore import QDateTime
 import argparse
 import binascii
 from collections import defaultdict
+import ast
 
 CONFIG_FILE = "config.ini"
 
@@ -48,6 +49,7 @@ Maxlines = 10
 MaxlinesInputed = 0
 SelectedCol = 100
 SelectedRow = 100
+MB_ids = ['81']
 
 class Main(QWidget, ui.Ui_MainWindow):
     print("class Main")    
@@ -58,6 +60,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         global Program_start_addr
         global TabWidgetIndex
         global response_data_hex
+        global MB_ids
 
         parser = argparse.ArgumentParser(description="Example script with debug option")
         parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -98,6 +101,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.log.clicked.connect(self.openflie)
         self.ProgOpen.clicked.connect(self.ProgOpenFile)
         self.ProgUpgrade.clicked.connect(self.ProgStart)
+        self.Scan.clicked.connect(self.scan_modbus_ids)
         
         #self.progress_bar = QtWidgets.QProgressBar()
         #self.progressBar.setProperty("value", 25)
@@ -152,6 +156,10 @@ class Main(QWidget, ui.Ui_MainWindow):
             cmd_format = "HEX"
             self.CmdType.setCurrentIndex(1)       
          
+        # MB_ID list init 
+        self.MB_ID.addItems(MB_ids) 
+        self.MB_ID.currentIndexChanged.connect(self.MBID_Change)
+        self.MB_ID.setCurrentIndex(int(MB_list_sel))  
         
         print("baudrate = ",ser.baudrate)   
         self.com_open()
@@ -1308,6 +1316,14 @@ class Main(QWidget, ui.Ui_MainWindow):
             cmd_format = "ASCII"
         elif (1==index):
             cmd_format = "HEX"
+            
+    def MBID_Change(self, index):
+        global ModbusID_HEX
+        print("MBID_Change:", index)
+        print(type(ModbusID_HEX)) 
+        ModbusID_HEX = int(MB_ids[index]).to_bytes(1, 'big')  # Transfer to Hex        
+        set_config_value(config, "ProgramSettings", "modbus_list_sel", str(index))
+        save_config(config)        
 
     def loadDevices(self):
         # 读取Device.xlsx中的Device分頁
@@ -1334,7 +1350,49 @@ class Main(QWidget, ui.Ui_MainWindow):
             # 获取A2开始的内容
             functions = df.iloc[:, 0].dropna().tolist()
             self.Function.clear()
-            self.Function.addItems(functions)        
+            self.Function.addItems(functions)     
+
+    def scan_modbus_ids(self, timeout=0.03):
+        global TabWidgetIndex
+        global ModbusID_HEX
+        global MB_ids
+        
+        found_ids = []
+        for modbus_id in range(80, 85):
+            request = bytes([modbus_id]) + b'\x6E\x84'
+            response = self.send_modbus_request(ser, request)            
+            response = self.read_modbus_response(expected_length = 7,timeout=0.2)
+	            
+            if response and response[0] == modbus_id:
+                print("Found = ",modbus_id)  
+                #found_ids.append(str(modbus_id))
+                if (0==int(TabWidgetIndex)):
+                    self.OutputText.append(f"Find ID {modbus_id}")    
+                elif (1==int(TabWidgetIndex)):
+                    self.ProgOutputText.append(f"Find ID {modbus_id}")                  
+            else:
+                if (0==int(TabWidgetIndex)):
+                    self.OutputText.append(f"ID {modbus_id} not found")    
+                elif (1==int(TabWidgetIndex)):
+                    self.ProgOutputText.append(f"ID {modbus_id} not found")
+            QApplication.processEvents() #update UI
+            found_ids.append(str(modbus_id))
+        
+        if not found_ids:
+            found_ids.append("81")  # default is 81        
+        print("found_ids = ",found_ids) 
+        self.MB_ID.clear()
+        self.MB_ID.addItems(found_ids)
+        set_config_value(config, "ProgramSettings", "found_ids", found_ids)
+        self.MB_ID.setCurrentIndex(0)  
+        
+        MB_ids = found_ids
+        #MB_ids = ast.literal_eval(MB_ids)
+        
+        #ModbusID_HEX = int(found_ids[0]).to_bytes(1, 'big')  # Transfer to Hex
+        ModbusID_HEX = int(MB_ids[0]).to_bytes(1, 'big')  # Transfer to Hex
+        return found_ids
+    
     '''
     def event(self, event):     
         print("event.type()=")  
@@ -1523,7 +1581,7 @@ class Sub(QWidget,config.Ui_Configure):
         print("comport_scan")    
         # 处理串口值
         port_list = list(serial.tools.list_ports.comports())  
-        port_str_list = []  # 用来存储切割好的串口号
+
         for i in range(len(port_list)):
             # 将串口号切割出来
             lines = str(port_list[i])
@@ -1545,7 +1603,7 @@ def load_config():
     config = configparser.ConfigParser()
     if not os.path.exists(CONFIG_FILE):
         config.read_dict(DEFAULT_CONFIG)
-        save_config(config)  # 立即保存預設值
+        save_config(config)  # save
     else:
         config.read(CONFIG_FILE)
     return config
@@ -1556,19 +1614,19 @@ def get_config_value(config, section, key, default):
         config[section] = {}
 
     if key not in config[section]:
-        config[section][key] = default  # 添加缺失的鍵值
-        save_config(config)  # 保存變更
+        config[section][key] = default  # load default
+        save_config(config)  
     return config[section][key]
 
 def set_config_value(config, section, key, value):
     """設定 config 內的某個值並寫回 config.ini"""
     if not config.has_section(section):
         config[section] = {}
-    config[section][key] = str(value)  # 確保所有數據以字串格式儲存
+    config[section][key] = str(value)  # Make sure all data is stored in string format
     save_config(config)
 
 def save_config(config):
-    """將更新後的配置寫回 config.ini"""
+    #save config.ini
     with open(CONFIG_FILE, "w") as f:
         config.write(f)
         
@@ -1583,6 +1641,8 @@ if __name__ == '__main__':
     global cmd_format
     global Debug_mode
     global response_data_hex
+    global ModbusID_HEX
+
     
     Debug_mode = "off"
     CURRENT_PACKAGE_DIRECTORY = os.path.abspath('.')    
@@ -1592,14 +1652,12 @@ if __name__ == '__main__':
     Log_DIRECTORY = CURRENT_PACKAGE_DIRECTORY + '\\log' 
     
     if os.path.exists(Log_DIRECTORY):
-        print("Log目錄已存在。")   	
+        print("Log folder exist")   	
     else:       
-        # 使用 try 建立目錄
         try:
             os.makedirs(Log_DIRECTORY)
-        # 檔案已存在的例外處理
         except FileExistsError:
-            print("Log目錄已存在。")   
+            print("Log folder exist")     
     
     
     now = datetime.datetime.now()
@@ -1615,10 +1673,9 @@ if __name__ == '__main__':
     first_line_character = True
         
     port_list = None
-    port_str_list = []  
         
     ser = serial.Serial()
-     
+    
     config = load_config()
 
     # Read SystemSettings
@@ -1633,12 +1690,16 @@ if __name__ == '__main__':
     # Read ProgramSettings
     Program_start_addr = get_config_value(config, "ProgramSettings", "program_start_addr", "0x84008")
     Program_last_file = get_config_value(config, "ProgramSettings", "last_file", "")
-    ModbusID = get_config_value(config, "ProgramSettings", "modbus_id", "81")
-
+    #ModbusID = get_config_value(config, "ProgramSettings", "modbus_id", "81")
+    MB_list_sel = get_config_value(config, "ProgramSettings", "modbus_list_sel", "0")
+    MB_ids = get_config_value(config, "ProgramSettings", "found_ids", "['81']")
+    MB_ids = ast.literal_eval(MB_ids)
+       
     # Save config
     save_config(config)      
     
-    ModbusID_HEX = int(ModbusID).to_bytes(1, 'big')  # Transfer to Hex
+    ModbusID_HEX = int(MB_ids[int(MB_list_sel)]).to_bytes(1, 'big')  # Transfer to Hex
+      
 
     if (modbus_mode == "ascii"):
         ser.timeout = 0.01
@@ -1651,8 +1712,7 @@ if __name__ == '__main__':
     print("ser.bytesize =",ser.bytesize )       
     print("ser.stopbits =",ser.stopbits ) 
     print("modbus_mode =",modbus_mode ) 
-    print("Program_start_addr =",Program_start_addr )      
-    
+    print("Program_start_addr =",Program_start_addr )           
     
     #ser = serial.Serial('COM10', 19200, parity=serial.PARITY_EVEN, bytesize=8, stopbits=1, timeout=1)
 
