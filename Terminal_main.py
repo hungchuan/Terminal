@@ -24,6 +24,26 @@ import argparse
 import binascii
 from collections import defaultdict
 
+CONFIG_FILE = "config.ini"
+
+DEFAULT_CONFIG = {
+    "SystemSettings": {
+        "comport": "COM3",
+        "baudrate": "19200",
+        "parity": "E",
+        "databits": "8",
+        "stopbits": "1",
+        "modbus": "rtu",
+        "tabwidgetindex": "0"
+    },
+    "ProgramSettings": {
+        "program_start_addr": "0x84008",
+        "last_file": "",
+        "modbus_id": "81"
+    }
+}
+
+
 Maxlines = 10
 MaxlinesInputed = 0
 SelectedCol = 100
@@ -643,8 +663,8 @@ class Main(QWidget, ui.Ui_MainWindow):
             self.Progfile_path = Progfile_path
             self.ProgFileName.setText(f"{Progfile_path}")
             self.ProgUpgrade.setEnabled(True)
-            config_w['ProgramSettings']['last_file'] = Program_last_file
-            config_w.write(open('config.ini', "w+"))
+            set_config_value(config, "ProgramSettings", "last_file", Program_last_file)
+            save_config(config)
 
         else:
             # If no file is selected, disable the upgrade button
@@ -833,7 +853,7 @@ class Main(QWidget, ui.Ui_MainWindow):
             self.writeflie("\n") 
         
         # Step 1: Send Firmware update start (0x81)
-        firmware_update_cmd = b'\x51\x6E\x81\x10WIC-001LF100LA' + b'\x00' * (16 - len("WIC-001LF100LA"))
+        firmware_update_cmd = ModbusID_HEX + b'\x6E\x81\x10WIC-001LF100LA' + b'\x00' * (16 - len("WIC-001LF100LA"))
         response = self.send_modbus_request(ser, firmware_update_cmd)              
         
         # 2. read the response
@@ -846,7 +866,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         time.sleep(3)
 
         # Step 4: Send Update Status (0x84)
-        update_status_cmd = b'\x51\x6E\x84'
+        update_status_cmd = ModbusID_HEX + b'\x6E\x84'
         response = self.send_modbus_request(ser, update_status_cmd)
         
         # 5. read the response
@@ -893,7 +913,8 @@ class Main(QWidget, ui.Ui_MainWindow):
             if ((bytes_sent + self.chunk_size) > size):
                 last_block = 1
             
-            request = bytes([0x51, 0x6E, 0x82, 0x85, 0x00, 0x00, last_block, block_index & 0xFF, (block_index >> 8) & 0xFF]) + chunk
+            #request = bytes([0x51, 0x6E, 0x82, 0x85, 0x00, 0x00, last_block, block_index & 0xFF, (block_index >> 8) & 0xFF]) + chunk
+            request = ModbusID_HEX + bytes([0x6E, 0x82, 0x85, 0x00, 0x00, last_block,block_index & 0xFF, (block_index >> 8) & 0xFF]) + chunk
             response = self.send_modbus_request(ser, request)         
             #read the response
             response = self.read_modbus_response(expected_length = 6,timeout=2)
@@ -913,7 +934,7 @@ class Main(QWidget, ui.Ui_MainWindow):
             QApplication.processEvents()  # 更新 UI
         
         # Switch to new firmware 
-        firmware_update_cmd = b'\x51\x6E\x83\x08\x07'
+        firmware_update_cmd = ModbusID_HEX + b'\x6E\x83\x08\x07'
         response = self.send_modbus_request(ser, firmware_update_cmd)          
         
         # 記錄結束時間並顯示
@@ -1261,8 +1282,11 @@ class Main(QWidget, ui.Ui_MainWindow):
     def on_tab_changed(self, index):
         global TabWidgetIndex
         print("Switched to tab:", index)
-        config_w['SystemSettings']['TabWidgetIndex'] = str(index)
-        config_w.write(open('config.ini',"w+"))
+        #config_w['SystemSettings']['TabWidgetIndex'] = str(index)
+        #config_w.write(open('config.ini',"w+"))
+        set_config_value(config, "SystemSettings", "TabWidgetIndex", str(index))
+        save_config(config)
+        
         TabWidgetIndex = index
         '''
         self.com_close()
@@ -1475,20 +1499,15 @@ class Sub(QWidget,config.Ui_Configure):
         if (ser.isOpen()): # open success
             print("opened already")  
         else:
-            window.com_open()
-
-        config_w = configparser.ConfigParser()
-        config_w.read('config.ini')
+            window.com_open()      
         
-        config_w.set('SystemSettings','comport',ser.port)
-        config_w.set('SystemSettings','baudrate',str(ser.baudrate))
-        config_w.set('SystemSettings','parity',ser.parity)
-        config_w.set('SystemSettings','databits',str(ser.bytesize))
-        config_w.set('SystemSettings','stopbits',str(ser.stopbits))
-        config_w.set('SystemSettings','modbus',str(modbus_mode))
-
-        
-        config_w.write(open('config.ini',"w+"))
+        set_config_value(config, "SystemSettings", "comport", ser.port)
+        set_config_value(config, "SystemSettings", "baudrate", str(ser.baudrate))
+        set_config_value(config, "SystemSettings", "parity", ser.parity)
+        set_config_value(config, "SystemSettings", "databits", str(ser.bytesize))
+        set_config_value(config, "SystemSettings", "stopbits", str(ser.stopbits))
+        set_config_value(config, "SystemSettings", "modbus", str(modbus_mode))
+        save_config(config)
         
         if (modbus_mode == "ascii"):
             ser.timeout = 0.01
@@ -1520,6 +1539,40 @@ class Sub(QWidget,config.Ui_Configure):
             print("comport is not in list")
            
 
+
+def load_config():
+    """讀取或創建 config.ini 配置文件"""
+    config = configparser.ConfigParser()
+    if not os.path.exists(CONFIG_FILE):
+        config.read_dict(DEFAULT_CONFIG)
+        save_config(config)  # 立即保存預設值
+    else:
+        config.read(CONFIG_FILE)
+    return config
+
+def get_config_value(config, section, key, default):
+    """嘗試讀取配置，若不存在則使用預設值，並更新 config"""
+    if not config.has_section(section):
+        config[section] = {}
+
+    if key not in config[section]:
+        config[section][key] = default  # 添加缺失的鍵值
+        save_config(config)  # 保存變更
+    return config[section][key]
+
+def set_config_value(config, section, key, value):
+    """設定 config 內的某個值並寫回 config.ini"""
+    if not config.has_section(section):
+        config[section] = {}
+    config[section][key] = str(value)  # 確保所有數據以字串格式儲存
+    save_config(config)
+
+def save_config(config):
+    """將更新後的配置寫回 config.ini"""
+    with open(CONFIG_FILE, "w") as f:
+        config.write(f)
+        
+        
 if __name__ == '__main__':
     global port_open
     global Timestamp_flag
@@ -1566,100 +1619,26 @@ if __name__ == '__main__':
         
     ser = serial.Serial()
      
-    config = configparser.ConfigParser()       
-    config_w = configparser.ConfigParser() # for config.ini write
-    #config_w['SystemSettings'] = {}       
-    #config_w['ProgramSettings'] = {}     
-    
-    if not os.path.exists('config.ini'):
-        config["SystemSettings"] = {
-            "comport": "COM3",
-            "baudrate": "19200",
-            "parity": "E",
-            "databits": "8",
-            "stopbits": "1",
-            "modbus": "rtu",
-            "tabwidgetindex": "0"
-        }
-        config["ProgramSettings"] = {
-            "program_start_addr": "0x84008",
-            "last_file": ""
-        }
-        with open('config.ini', "w") as configfile:
-            config.write(configfile)
-            
-        #config_w.write(open('config.ini',"w+"))  
-    
-    config.read('config.ini')
-    config_w = config
-    
-    try:    
-        ser.port = config['SystemSettings']['comport'] 
-    except:
-        ser.port = "COM1"
-        config_w['SystemSettings']['comport'] = "COM1"
-        config_w.write(open('config.ini',"w+"))  
-        
-    if (ser.port==None)|(ser.port==""):
-        ser.port = "COM1"
-    
-    try:
-        ser.baudrate = int(config['SystemSettings']['baudrate'])
-    except:
-        ser.baudrate = 115200
-        config_w['SystemSettings']['baudrate'] = "115200"  
-        config_w.write(open('config.ini',"w+"))  
-    
-    try:
-        ser.parity = config['SystemSettings']['parity']
-    except:
-        ser.parity = "N"
-        config_w['SystemSettings']['parity'] = "N"
-        config_w.write(open('config.ini',"w+"))  
-        
-    try:    
-        ser.bytesize = int(config['SystemSettings']['databits'])
-    except:
-        ser.bytesize = 8
-        config_w['SystemSettings']['databits'] = "8"
-        config_w.write(open('config.ini',"w+"))  
-    
-    try:
-        ser.stopbits = int(config['SystemSettings']['stopbits'])
-    except:
-        ser.stopbits = 1
-        config_w['SystemSettings']['stopbits'] = "1"
-        config_w.write(open('config.ini',"w+"))  
+    config = load_config()
 
-    try:
-        modbus_mode = config['SystemSettings']['modbus'] 
-    except:
-        modbus_mode = "ascii"
-        config_w['SystemSettings']['modbus'] = "ascii"
-        config_w.write(open('config.ini',"w+"))  
+    # Read SystemSettings
+    ser.port = get_config_value(config, "SystemSettings", "comport", "COM1")
+    ser.baudrate = int(get_config_value(config, "SystemSettings", "baudrate", "115200"))
+    ser.parity = get_config_value(config, "SystemSettings", "parity", "N")
+    ser.bytesize = int(get_config_value(config, "SystemSettings", "databits", "8"))
+    ser.stopbits = int(get_config_value(config, "SystemSettings", "stopbits", "1"))
+    modbus_mode = get_config_value(config, "SystemSettings", "modbus", "ascii")
+    TabWidgetIndex = int(get_config_value(config, "SystemSettings", "tabwidgetindex", "0"))
 
-    try:
-        TabWidgetIndex = config['SystemSettings']['TabWidgetIndex'] 
-    except:
-        TabWidgetIndex = 0
-        config_w['SystemSettings']['TabWidgetIndex'] = "0"
-        config_w.write(open('config.ini',"w+"))  
+    # Read ProgramSettings
+    Program_start_addr = get_config_value(config, "ProgramSettings", "program_start_addr", "0x84008")
+    Program_last_file = get_config_value(config, "ProgramSettings", "last_file", "")
+    ModbusID = get_config_value(config, "ProgramSettings", "modbus_id", "81")
 
-
-    try:
-        Program_start_addr = config['ProgramSettings']['Program_start_addr'] 
-    except:
-        Program_start_addr = "0x84008"
-        config_w['ProgramSettings']['Program_start_addr'] = "0x84008"
-        config_w.write(open('config.ini',"w+"))  
-
-    try:
-        Program_last_file = config['ProgramSettings']['last_file'] 
-    except:
-        Program_last_file = ""
-        config_w['ProgramSettings']['last_file'] = ""
-        config_w.write(open('config.ini',"w+"))  
-        
+    # Save config
+    save_config(config)      
+    
+    ModbusID_HEX = int(ModbusID).to_bytes(1, 'big')  # Transfer to Hex
 
     if (modbus_mode == "ascii"):
         ser.timeout = 0.01
