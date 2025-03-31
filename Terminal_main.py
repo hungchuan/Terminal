@@ -993,7 +993,7 @@ class Main(QWidget, ui.Ui_MainWindow):
                     self.writeflie("\n")
 
                 return response
-            time.sleep(0.1)
+            time.sleep(0.01)
         return None
   
     def wait_for_response(self, expected_response, timeout=5):
@@ -1352,33 +1352,36 @@ class Main(QWidget, ui.Ui_MainWindow):
             self.Function.clear()
             self.Function.addItems(functions)     
 
-    def scan_modbus_ids(self, timeout=0.03):
+    def scan_modbus_ids(self, scan_timeout=0.04):
         global TabWidgetIndex
         global ModbusID_HEX
         global MB_ids
-        
+               
         found_ids = []
-        for modbus_id in range(80, 85):
+        for modbus_id in range(1, 256):
             request = bytes([modbus_id]) + b'\x6E\x84'
             response = self.send_modbus_request(ser, request)            
-            response = self.read_modbus_response(expected_length = 7,timeout=0.2)
+            response = self.read_modbus_response(expected_length = 7,timeout = 0.04)
 	            
             if response and response[0] == modbus_id:
                 print("Found = ",modbus_id)  
-                #found_ids.append(str(modbus_id))
+                found_ids.append(str(modbus_id))
                 if (0==int(TabWidgetIndex)):
                     self.OutputText.append(f"Find ID {modbus_id}")    
                 elif (1==int(TabWidgetIndex)):
                     self.ProgOutputText.append(f"Find ID {modbus_id}")                  
+            
             else:
                 if (0==int(TabWidgetIndex)):
                     self.OutputText.append(f"ID {modbus_id} not found")    
                 elif (1==int(TabWidgetIndex)):
                     self.ProgOutputText.append(f"ID {modbus_id} not found")
+            
             QApplication.processEvents() #update UI
-            found_ids.append(str(modbus_id))
+            #found_ids.append(str(modbus_id))
         
         if not found_ids:
+            print("Not found, use default ID 81") 
             found_ids.append("81")  # default is 81        
         print("found_ids = ",found_ids) 
         self.MB_ID.clear()
@@ -1390,7 +1393,8 @@ class Main(QWidget, ui.Ui_MainWindow):
         #MB_ids = ast.literal_eval(MB_ids)
         
         #ModbusID_HEX = int(found_ids[0]).to_bytes(1, 'big')  # Transfer to Hex
-        ModbusID_HEX = int(MB_ids[0]).to_bytes(1, 'big')  # Transfer to Hex
+        ModbusID_HEX = int(MB_ids[0]).to_bytes(1, 'big')  # Transfer to Hex        
+        
         return found_ids
     
     '''
