@@ -61,6 +61,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         global TabWidgetIndex
         global response_data_hex
         global MB_ids
+        global chunk_size
 
         parser = argparse.ArgumentParser(description="Example script with debug option")
         parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -80,10 +81,11 @@ class Main(QWidget, ui.Ui_MainWindow):
         self.bin_data_Bank1 = None
         
         self.target_start_addr = Program_start_addr #0x84008  # 設定 MCU 的目標地址
+        
         if (modbus_mode == "ascii"):
-            self.chunk_size = 256
+            chunk_size = 256
         else:
-            self.chunk_size = 128        
+            chunk_size = 128        
         
         
         print("Main__init__")   
@@ -763,6 +765,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         return bytes(bin_data_bank0), bytes(bin_data_bank1)
                   
     def ProgStart_ascii(self):
+        global chunk_size
         print("ProgStart_ascii")        
         # 記錄開始時間
         start_time = QTime.currentTime()  
@@ -808,7 +811,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         bytes_sent = 0
         checksum = 0;
         while bytes_sent < size:
-            chunk = self.bin_data[bytes_sent:bytes_sent + self.chunk_size]
+            chunk = self.bin_data[bytes_sent:bytes_sent + chunk_size]
             checksum = (sum(chunk) + checksum) & 0xFF  # 計算 Checksum
             
             chunk = chunk.ljust(256, b'\x00') #補滿到 256 bytes
@@ -913,12 +916,12 @@ class Main(QWidget, ui.Ui_MainWindow):
         last_block = 0
         
         while bytes_sent < size:
-            chunk = self.bin_data[bytes_sent:bytes_sent + self.chunk_size]
+            chunk = self.bin_data[bytes_sent:bytes_sent + chunk_size]
             checksum = (sum(chunk) + checksum) & 0xFF  # 計算 Checksum
             
             chunk = chunk.ljust(128, b'\x00') #補滿到 128 bytes
             
-            if ((bytes_sent + self.chunk_size) > size):
+            if ((bytes_sent + chunk_size) > size):
                 last_block = 1
             
             #request = bytes([0x51, 0x6E, 0x82, 0x85, 0x00, 0x00, last_block, block_index & 0xFF, (block_index >> 8) & 0xFF]) + chunk
@@ -1519,6 +1522,8 @@ class Sub(QWidget,config.Ui_Configure):
         
     def configureClose(self): 
         global modbus_mode
+        global chunk_size
+        
         ser.port =  self.comport.currentText()
         print("ser.port = ",ser.port)  
         
@@ -1555,8 +1560,12 @@ class Sub(QWidget,config.Ui_Configure):
         modbus_index = self.ModbusType.currentIndex()
         if (modbus_index == 0):
             modbus_mode = "ascii"
+            ser.timeout = 0.01
+            chunk_size = 256
         elif (modbus_index == 1):
             modbus_mode = "rtu" 
+            ser.timeout = 0.1
+            chunk_size = 128
         
         if (ser.isOpen()): # open success
             print("opened already")  
@@ -1569,13 +1578,8 @@ class Sub(QWidget,config.Ui_Configure):
         set_config_value(config, "SystemSettings", "databits", str(ser.bytesize))
         set_config_value(config, "SystemSettings", "stopbits", str(ser.stopbits))
         set_config_value(config, "SystemSettings", "modbus", str(modbus_mode))
-        save_config(config)
-        
-        if (modbus_mode == "ascii"):
-            ser.timeout = 0.01
-        else:
-            ser.timeout = 0.1
-        
+        save_config(config)      
+       
         wig.close()
  
     def comport_clear(self): 
