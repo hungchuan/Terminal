@@ -862,10 +862,24 @@ class Main(QWidget, ui.Ui_MainWindow):
         if self.debug_mode:
             self.writeflie(" ============== ProgStart_RTU ================ ")            
             self.writeflie("\n") 
+
+		# Get part number from bin data
+        PartNum_OFFSET = 0x20         # Start address of PartNum
+        PartNum_LENGTH = 16           # Number of bytes to extract
+        PartNum_END = PartNum_OFFSET + PartNum_LENGTH * 2  # Read every 2 bytes
+
+        # Extract every even byte starting from PartNum_OFFSET
+        PartNum_bytes = bytearray()
+        for addr in range(PartNum_OFFSET, PartNum_END, 2):
+            PartNum_bytes.append(self.bin_data[addr])
+
+        # Pad with 0x00 if the name is less than 16 bytes. (this will not happen, it is a safety precaution)
+        PartNum_bytes = PartNum_bytes.ljust(PartNum_LENGTH, b'\x00')
         
         # Step 1: Send Firmware update start (0x81)
-        firmware_update_cmd = ModbusID_HEX + b'\x6E\x81\x10WIC-001LF100LA' + b'\x00' * (16 - len("WIC-001LF100LA"))
-        response = self.send_modbus_request(ser, firmware_update_cmd)              
+        #firmware_update_cmd = ModbusID_HEX + b'\x6E\x81\x10WIC-001LF100LA' + b'\x00' * (16 - len("WIC-001LF100LA"))
+        firmware_update_cmd = ModbusID_HEX + b'\x6E\x81\x10' + PartNum_bytes
+        response = self.send_modbus_request(ser, firmware_update_cmd)          
         
         # 2. read the response
         response = self.read_modbus_response(expected_length = 6,timeout=2)
