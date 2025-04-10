@@ -91,6 +91,7 @@ class Main(QWidget, ui.Ui_MainWindow):
         print("Main__init__")   
         super().__init__()
         self.setupUi(self)
+        self.setWindowTitle("Terminal 0.1.0")  # setWindowTitle
         self.Connect.setAutoFillBackground(True)
         self.Debug.setAutoFillBackground(True)
 
