@@ -691,8 +691,10 @@ class Main(QWidget, ui.Ui_MainWindow):
         base_address = 0  # Extended address (Segment / Linear Address)
         
         # Target address range (multiplied by 2)
-        BANK0_START = 0x086808 * 2
-        BANK1_START = 0x0A6808 * 2
+        #BANK0_START = 0x084008 * 2
+        #BANK1_START = 0x0A4008 * 2
+        BANK0_START = int(self.target_start_addr, 16) * 2 # 0x084008 * 2
+        BANK1_START = (int(self.target_start_addr, 16)+ 0x20000) * 2 # 0x0A4008 * 2
 
         # Read HEX file
         with open(hex_file, "r") as f:
